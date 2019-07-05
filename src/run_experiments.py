@@ -3,9 +3,10 @@ from __future__ import print_function
 #matplotlib.use('Agg')
 import numpy as np
 import tensorflow as tf
+# import tensorflow.python.keras as keras
 import random as rn
 
-### We modified Pahikkala et al. (2014) source code for cross-val process ###
+### We modified Pahikkala et al. (2014) src code for cross-val process ###
 
 import os
 os.environ['PYTHONHASHSEED'] = '0'
@@ -13,34 +14,29 @@ os.environ['PYTHONHASHSEED'] = '0'
 np.random.seed(1)
 rn.seed(1)
 
-session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
-import keras
-from keras import backend as K
-tf.set_random_seed(0)
-sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
-K.set_session(sess)
+# session_conf = tf.ConfigProto(intra_op_parallelism_threads=1, inter_op_parallelism_threads=1)
+import tensorflow.python.keras as keras
+# import keras
+# from keras import backend as K
+# tf.set_random_seed(0)
+# sess = tf.Session(graph=tf.get_default_graph(), config=session_conf)
+# K.set_session(sess)
 
 
-from datahelper import *
+from src.datahelper import *
 #import logging
 from itertools import product
-from arguments import argparser, logging
+from src.arguments import argparser, logging
 
-import keras
-from keras.models import Model
-from keras.preprocessing import sequence
-from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Activation, Merge
-from keras.layers import Embedding
-from keras.layers import Conv1D, GlobalMaxPooling1D, MaxPooling1D
-from keras.layers.normalization import BatchNormalization
-from keras.layers import Conv2D, GRU
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Masking, RepeatVector, merge, Flatten
-from keras.models import Model
-from keras.utils import plot_model
-from keras.layers import Bidirectional
-from keras.callbacks import ModelCheckpoint, EarlyStopping
-from keras import optimizers, layers
+from tensorflow.python.keras.preprocessing import sequence
+from tensorflow.python.keras.models import Sequential, load_model, Model
+from tensorflow.python.keras.layers import Dense, Dropout, Activation, Merge, Embedding, Conv1D, GlobalMaxPooling1D, \
+    MaxPooling1D, Conv2D, GRU, Input, Embedding, LSTM, Dense, TimeDistributed,\
+    Masking, RepeatVector, merge, Flatten, Bidirectional
+from tensorflow.python.keras.layers.normalization import BatchNormalization
+from tensorflow.python.keras.utils import plot_model
+from tensorflow.python.keras.callbacks import ModelCheckpoint, EarlyStopping
+from tensorflow.python.keras import optimizers, layers
 
 
 import sys, pickle, os
@@ -51,7 +47,7 @@ import matplotlib.mlab as mlab
 from random import shuffle
 from copy import deepcopy
 from sklearn import preprocessing
-from emetrics import get_aupr, get_cindex, get_rm2
+from src.emetrics import get_aupr, get_cindex, get_rm2
 
 
 
@@ -101,8 +97,7 @@ def build_combined_onehot(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
 
 
 
-
-def build_combined_categorical(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
+def build_model(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
    
     XDinput = Input(shape=(FLAGS.max_smi_len,), dtype='int32') ### Buralar flagdan gelmeliii
     XTinput = Input(shape=(FLAGS.max_seq_len,), dtype='int32')
@@ -242,7 +237,7 @@ def build_baseline(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
 def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measure, runmethod,  FLAGS, dataset):
 
     bestparamlist = []
-    test_set, outer_train_sets = dataset.read_sets(FLAGS) 
+    test_set, outer_train_sets = dataset.load_5fold_split(FLAGS)
     
     foldinds = len(outer_train_sets)
 
@@ -251,7 +246,7 @@ def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measu
     val_sets = []
     train_sets = []
 
-    #logger.info('Start training')
+    # cross validation split
     for val_foldind in range(foldinds):
         val_fold = outer_train_sets[val_foldind]
         val_sets.append(val_fold)
@@ -306,7 +301,7 @@ def nfold_1_2_3_setting_sample(XD, XT,  Y, label_row_inds, label_col_inds, measu
 
 
 
-def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, runmethod, FLAGS, labeled_sets, val_sets): ## BURAYA DA FLAGS LAZIM????
+def general_nfold_cv(XD, XT, Y, label_row_inds, label_col_inds, prfmeasure, runmethod, FLAGS, train_set, val_sets): ## BURAYA DA FLAGS LAZIM????
     
     paramset1 = FLAGS.num_windows                              #[32]#[32,  512] #[32, 128]  # filter numbers
     paramset2 = FLAGS.smi_window_lengths                               #[4, 8]#[4,  32] #[4,  8] #filter length smi
@@ -325,7 +320,7 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
 
     for foldind in range(len(val_sets)):
         valinds = val_sets[foldind]
-        labeledinds = labeled_sets[foldind]
+        labeledinds = train_set[foldind]
 
         Y_train = np.mat(np.copy(Y))
 
@@ -476,7 +471,7 @@ def prepare_interaction_pairs(XD, XT,  Y, rows, cols):
 
 
        
-def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross validation + test
+def experiment(args, perfmeasure, deepmethod, foldcount=6): #5-fold cross validation + test
 
     #Input
     #XD: [drugs, features] sized array (features may also be similarities with other drugs
@@ -487,16 +482,15 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
     #foldcount: number of cross-validation folds for settings 1-3, setting 4 always runs 3x3 cross-validation
 
 
-    dataset = DataSet( fpath = FLAGS.dataset_path, ### BUNU ARGS DA GUNCELLE
-                      setting_no = FLAGS.problem_type, ##BUNU ARGS A EKLE
-                      seqlen = FLAGS.max_seq_len,
-                      smilen = FLAGS.max_smi_len,
-                      need_shuffle = False )
+    dataset = DataSet(fpath = args.dataset_path,  ### BUNU ARGS DA GUNCELLE
+                      setting_no = args.problem_type,  ##BUNU ARGS A EKLE
+                      seqlen = args.max_seq_len,
+                      need_shuffle = False)
     # set character set size
-    FLAGS.charseqset_size = dataset.charseqset_size 
-    FLAGS.charsmiset_size = dataset.charsmiset_size 
+    args.charseqset_size = dataset.charseqset_size
+    args.charsmiset_size = dataset.charsmiset_size
 
-    XD, XT, Y = dataset.parse_data(FLAGS)
+    XD, XT, Y = dataset.parse_data(args)
 
     XD = np.asarray(XD)
     XT = np.asarray(XT)
@@ -507,21 +501,21 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
     targetcount = XT.shape[0]
     print(targetcount)
 
-    FLAGS.drug_count = drugcount
-    FLAGS.target_count = targetcount
+    args.drug_count = drugcount
+    args.target_count = targetcount
 
     label_row_inds, label_col_inds = np.where(np.isnan(Y)==False)  #basically finds the point address of affinity [x,y]
 
     if not os.path.exists(figdir):
         os.makedirs(figdir)
 
-    print(FLAGS.log_dir)
+    print(args.log_dir)
     S1_avgperf, S1_avgloss, S1_teststd = nfold_1_2_3_setting_sample(XD, XT, Y, label_row_inds, label_col_inds,
-                                                                     perfmeasure, deepmethod, FLAGS, dataset)
+                                                                    perfmeasure, deepmethod, args, dataset)
 
-    logging("Setting " + str(FLAGS.problem_type), FLAGS)
-    logging("avg_perf = %.5f,  avg_mse = %.5f, std = %.5f" % 
-            (S1_avgperf, S1_avgloss, S1_teststd), FLAGS)
+    logging("Setting " + str(args.problem_type), args)
+    logging("avg_perf = %.5f,  avg_mse = %.5f, std = %.5f" %
+            (S1_avgperf, S1_avgloss, S1_teststd), args)
 
 
 
@@ -529,7 +523,7 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
 def run_regression( FLAGS ): 
 
     perfmeasure = get_cindex
-    deepmethod = build_combined_categorical
+    deepmethod = build_model
 
     experiment(FLAGS, perfmeasure, deepmethod)
 
@@ -538,7 +532,7 @@ def run_regression( FLAGS ):
 
 if __name__=="__main__":
     FLAGS = argparser()
-    FLAGS.log_dir = FLAGS.log_dir + str(time.time()) + "/"
+    FLAGS.log_dir = FLAGS.log_dir + "/" + str(time.time()) + "/"
 
     if not os.path.exists(FLAGS.log_dir):
         os.makedirs(FLAGS.log_dir)
