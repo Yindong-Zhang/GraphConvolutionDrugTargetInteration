@@ -1,50 +1,62 @@
 import tensorflow as tf
 from tensorflow.python.keras import Model
-from tensorflow.python.keras.layers import Dense, BatchNormalization
+from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Input, Concatenate, Dropout
 from src.graphLayer import WeaveLayer, WeaveGather
 
-class GraphEmbedding(Model):
-    def __init__(self, atom_feat, pair_feat, atom_hidden_list, pair_hidden_list, graph_feat, num_mols):
-        self.atom_features = atom_feat
-        self.pair_features = pair_feat
-        self.atom_hidden_list = atom_hidden_list
-        self.pair_hidden_list = pair_hidden_list
-        self.graph_features = graph_feat
-        self.num_mols = num_mols
-        assert len(atom_hidden_list) == len(pair_hidden_list), "length of atom hidden list should equal to length of pair hidden list."
-        self.num_weaveLayers = len(atom_hidden_list)
-        self.weaveLayer_list = []
+def build_graph_embedding_model(atom_dim, pair_dim, atom_hidden_list, pair_hidden_list, graph_features, num_mols, ):
+    atom_features = Input(shape=(atom_dim,))
+    pair_features = Input(shape=(pair_dim,))
+    pair_split = Input(shape=(), dtype=tf.int32)
+    atom_split = Input(shape=(), dtype=tf.int32)
+    atom_to_pair = Input(shape=(2,), dtype=tf.int32)
+    num_weaveLayers = len(atom_hidden_list)
 
-        self.weaveLayer_list.append(WeaveLayer(atom_feat, pair_feat, atom_hidden_list[0], pair_hidden_list[0]))
-        for i in range(1, self.num_weaveLayers):
-            self.weaveLayer_list.append(WeaveLayer(atom_hidden_list[i - 1], pair_hidden_list[i - 1], atom_hidden_list[i], pair_hidden_list[i]))
+    atom_hidden, pair_hidden = WeaveLayer(atom_dim, pair_dim, atom_hidden_list[0], pair_hidden_list[0])([atom_features, pair_features, pair_split, atom_to_pair])
+    for i in range(1, num_weaveLayers):
+        atom_hidden, pair_hidden= WeaveLayer(atom_hidden_list[i - 1], pair_hidden_list[i - 1], atom_hidden_list[i], pair_hidden_list[i])([atom_hidden, pair_hidden, pair_split, atom_to_pair])
 
-        self.dense = Dense(graph_feat, activation= 'tanh')
-        self.batchnorm = BatchNormalization()
-        self.weavegather = WeaveGather(num_mols, self.graph_features, guassian_expand = True)
+    atom_hidden = Dense(graph_features, activation='tanh')(atom_hidden)
+    atom_hidden = BatchNormalization()(atom_hidden)
+    graph_embed = WeaveGather(num_mols, graph_features, gaussian_expand=True)([atom_hidden, atom_split])
 
-    def call(self, inputs):
-        atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
-        atom_hidden, pair_hidden = self.weaveLayer_list[0]([atom_features, pair_features, pair_split, atom_to_pair])
-        for i in range(1, self.num_weaveLayers):
-            atom_hidden, pair_hidden = self.weaveLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
-        atom_hidden = self.dense(atom_hidden)
-        atom_hidden = self.batchnorm(atom_hidden)
-        graph_feat = self.weavegather([atom_hidden, atom_split])
-        return graph_feat
+    model = tf.keras.Model(
+        inputs=[
+            atom_features, pair_features, pair_split, atom_split, atom_to_pair
+        ],
+        outputs= graph_embed)
+    return model
 
-    def compute_output_shape(self, input_shape):
-        return tf.TensorShape([self.num_mols, self.graph_features])
 
-class BiInteraction(Model):
-    def __init__(self, num_filters, filter_length1, filter_length2, max_seq_length):
-        super(BiInteraction, self).__init__()
-        self.num_filters = num_filters
-        self.filter_length1 = filter_length1
-        self.filter_length2 = filter_length2
-        self.max_seq_length = max_seq_length
+def build_protSeq_embedding_model(num_filters_list, filter_length_list, prot_seq_dim, max_seq_length):
+    assert len(num_filters_list) == len(filter_length_list), "incompatible hyper parameter."
+    num_conv_layers = len(num_filters_list)
+    protSeq = Input(shape= (max_seq_length, ))
+    seq_embed = Embedding(input_dim=prot_seq_dim + 1, output_dim=128, input_length=max_seq_length)(protSeq)
+    for i in range(num_conv_layers):
+        seq_embed = Conv1D(filters=num_filters_list[i], kernel_size= filter_length_list[i], activation='relu', padding='valid', strides=1)(seq_embed)
+    seq_embed = GlobalMaxPooling1D()(seq_embed)
+    model = Model(inputs = protSeq,
+                  outputs = seq_embed)
+    return model
 
-        self.graph_embedding = GraphEmbedding()
+def BiInteraction(graph_dim, seq_dim):
+    graph_embed = Input(shape= (graph_dim, ))
+    protSeq_embed = Input(shape= (seq_dim, ))
+    feat_concat = Concatenate()([graph_embed, protSeq_embed])
+    int_embed = Dense(1024, activation='relu')(feat_concat)
+    int_embed = Dropout(0.1)(int_embed)
+    int_embed = Dense(1024, activation='relu')(int_embed)
+    aff_logit = Dense(1, activation= None)(int_embed)
+    model = Model(inputs = [graph_embed, protSeq_embed],
+                  outputs = aff_logit)
+    return model
 
-    def call(self, input):
-        # TODO:
+    # TODO:
+if __name__ == "__main__":
+    model = build_protSeq_embedding_model([4, 8, 8], [5, 7, 9], 255, 1000)
+    model = build_graph_embedding_model(16, 8, [8, 8], [4, 4], 16, 8)
+    model.compile(optimizer='adam',
+                  loss='categorical_crossentropy',
+                  metrics=['accuracy']
+                  )
+    model.summary()

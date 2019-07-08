@@ -112,26 +112,26 @@ def label_sequence(line, MAX_SEQ_LEN, smi_ch_ind):
 ## ######################## ##
 
 def load_data(filepath, seqlen, featurizer, problem_type, is_log):
-	print("Read %s start" %(filepath, ))
+    print("Read %s start" %(filepath, ))
 
-	ligands = json.load(open(filepath + "ligands_can.txt"), object_pairs_hook=OrderedDict)
-	proteins = json.load(open(filepath + "proteins.txt"), object_pairs_hook=OrderedDict)
+    ligands = json.load(open(filepath + "ligands_can.txt"), object_pairs_hook=OrderedDict)
+    proteins = json.load(open(filepath + "proteins.txt"), object_pairs_hook=OrderedDict)
 
-	Y = pickle.load(open(filepath + "Y", "rb"), encoding='latin1')  ### TODO: read from raw
-	if is_log:
-		Y = -(np.log10(Y / (math.pow(10, 9))))
+    Y = pickle.load(open(filepath + "Y", "rb"), encoding='latin1')  ### TODO: read from raw
+    if is_log:
+        Y = -(np.log10(Y / (math.pow(10, 9))))
 
-	rd_mols = [MolFromSmiles(smiles) for smiles in ligands.values()]
-	mol_list = featurizer(rd_mols)
+    rd_mols = [MolFromSmiles(smiles) for smiles in ligands.values()]
+    mol_list = featurizer(rd_mols)
 
-	prot_list = [label_sequence(protein, seqlen, CHARPROTSET) for protein in proteins.values()]
+    prot_list = [label_sequence(protein, seqlen, CHARPROTSET) for protein in proteins.values()]
 
-	return mol_list, prot_list, Y
+    return mol_list, prot_list, Y
 
 def load_5fold_split(filepath, setting_no):
-	test_fold = json.load(open(filepath + "folds/test_fold_setting" + str(setting_no) + ".txt"))
-	train_folds = json.load(open(filepath + "folds/train_fold_setting" + str(setting_no) + ".txt"))
-	return train_folds, test_fold
+    test_fold = json.load(open(filepath + "folds/test_fold_setting" + str(setting_no) + ".txt"))
+    train_folds = json.load(open(filepath + "folds/train_fold_setting" + str(setting_no) + ".txt"))
+    return train_folds, test_fold
 
 def gather_mol(mols):
     """
@@ -169,95 +169,90 @@ def gather_mol(mols):
                        (n_atoms * n_atoms, -1)))
 
     mol_merged = [
-        np.concatenate(atom_feat, axis=0),
-        np.concatenate(pair_feat, axis=0),
+        np.concatenate(atom_feat, axis=0).astype(np.float32),
+        np.concatenate(pair_feat, axis=0).astype(np.float32),
         np.array(pair_split),
         np.array(atom_split),
-        np.concatenate(atom_to_pair, axis=0)
+        np.concatenate(atom_to_pair, axis=0),
     ]
     return mol_merged
 
 # works for large dataset
 class DataSet():
-	def __init__(self, problem_type, fpath, seqlen, featurizer):
-		self.SEQLEN = seqlen
-		self.charseqset = CHARPROTSET
-		# self.charseqset_size = CHARPROTLEN
+    def __init__(self, problem_type, fpath, seqlen, featurizer, is_log):
+        self.SEQLEN = seqlen
+        self.charseqset = CHARPROTSET
+        # self.charseqset_size = CHARPROTLEN
 
-		# self.charsmiset = CHARISOSMISET ###HERE CAN BE EDITED
-		# self.charsmiset_size = CHARISOSMILEN
-		self.filepath = fpath
-		self.problem_type = problem_type
-		self.featurizer = featurizer
+        # self.charsmiset = CHARISOSMISET ###HERE CAN BE EDITED
+        # self.charsmiset_size = CHARISOSMILEN
+        self.filepath = fpath
+        self.problem_type = problem_type
+        self.featurizer = featurizer
+        self.is_log = is_log
+        self.mol_list, self.protSeq_list, self.labels = self.parse_data(is_log)
 
-	# read raw file
-	# self._raw = self.read_sets( FLAGS)
+    def load_5fold_split(self): ### fpath should be the dataset folder /kiba/ or /davis/
+        setting_no = self.problem_type
+        print("Reading %s start" % self.filepath)
 
-	# iteration flags
-	# self._num_data = len(self._raw)
+        test_fold = json.load(open(self.filepath + "folds/test_fold_setting" + str(setting_no)+".txt"))
+        train_folds = json.load(open(self.filepath + "folds/train_fold_setting" + str(setting_no)+".txt"))
 
+        return train_folds, test_fold
 
-	def load_5fold_split(self): ### fpath should be the dataset folder /kiba/ or /davis/
-		setting_no = self.problem_type
-		print("Reading %s start" % self.filepath)
+    def parse_data(self, is_log= True):
+        print("Read %s start" % self.filepath)
 
-		test_fold = json.load(open(self.filepath + "folds/test_fold_setting" + str(setting_no)+".txt"))
-		train_folds = json.load(open(self.filepath + "folds/train_fold_setting" + str(setting_no)+".txt"))
+        ligands = json.load(open(self.filepath+"ligands_can.txt"), object_pairs_hook=OrderedDict)
+        proteins = json.load(open(self.filepath+"proteins.txt"), object_pairs_hook=OrderedDict)
 
-		return train_folds, test_fold
+        Y = pickle.load(open(self.filepath + "Y","rb"), encoding='latin1') ### TODO: read from raw
+        if is_log:
+            Y = -(np.log10(Y/(math.pow(10,9))))
 
-	def parse_data(self, is_log= True):
-		print("Read %s start" % self.filepath)
+        rd_mols = [MolFromSmiles(smiles) for smiles in ligands.values()]
+        mol_list = self.featurizer(rd_mols)
 
-		ligands = json.load(open(self.filepath+"ligands_can.txt"), object_pairs_hook=OrderedDict)
-		proteins = json.load(open(self.filepath+"proteins.txt"), object_pairs_hook=OrderedDict)
+        prot_list = [label_sequence(protein, self.SEQLEN, self.charseqset) for protein in proteins.values()]
 
-		Y = pickle.load(open(self.filepath + "Y","rb"), encoding='latin1') ### TODO: read from raw
-		if is_log:
-			Y = -(np.log10(Y/(math.pow(10,9))))
+        return mol_list, prot_list, Y
 
-		rd_mols = [MolFromSmiles(smiles) for smiles in ligands.values()]
-		mol_list = self.featurizer(rd_mols)
+    def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
+        mol_list, prot_list, aff_mat = self.mol_list, self.protSeq_list, self.labels
+        mol_array = np.array(mol_list)
+        prot_array = np.array(prot_list)
+        mol_inds, prot_inds = np.where(np.isnan(aff_mat) == False)
+        num_samples = mol_inds.shape[0]
+        sample_inds = np.arange(num_samples)[inds]
+        num_batches = len(sample_inds) // batchsize
+        rng = np.random.RandomState(seed)
+        if shuffle:
+            rng.shuffle(sample_inds)
 
-		prot_list = [label_sequence(protein, self.SEQLEN, self.charseqset) for protein in proteins.values()]
-
-		return mol_list, prot_list, Y
-
-	def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
-		mol_list, prot_list, aff_mat = self.parse_data()
-		mol_array = np.array(mol_list)
-		prot_array = np.array(prot_list)
-		mol_inds, prot_inds = np.where(np.isnan(aff_mat) == False)
-		num_samples = mol_inds.shape[0]
-		sample_inds = np.arange(num_samples)[inds]
-		num_batches = num_samples // batchsize
-		rng = np.random.RandomState(seed)
-		if shuffle:
-			rng.shuffle(sample_inds)
-
-		for i in range(num_batches):
-			batch_inds = sample_inds[ i * batchsize : ( i + 1 ) * batchsize]
-			batch_mol_inds = mol_inds[batch_inds]
-			batch_prot_inds = prot_inds[batch_inds]
-			batch_mol = mol_array[batch_mol_inds]
-			batch_prot = prot_array[batch_prot_inds]
-			batch_mol_merged = gather_mol(batch_mol)
-			labels = aff_mat[batch_mol_inds, batch_prot_inds]
-			yield batch_mol_merged, batch_prot, labels
+        for i in range(num_batches):
+            batch_inds = sample_inds[ i * batchsize : ( i + 1 ) * batchsize]
+            batch_mol_inds = mol_inds[batch_inds]
+            batch_prot_inds = prot_inds[batch_inds]
+            batch_mol = mol_array[batch_mol_inds]
+            batch_prot = prot_array[batch_prot_inds]
+            batch_mol_merged = gather_mol(batch_mol)
+            labels = aff_mat[batch_mol_inds, batch_prot_inds].reshape(-1, 1)
+            yield batch_mol_merged, batch_prot, labels
 
 if __name__ == '__main__':
-	filepath = '../data/kiba/'
-	weave_featurizer = WeaveFeaturizer()
-	dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
-					  problem_type= 1,  ##BUNU ARGS A EKLE
-					  seqlen= 1000,
-					  featurizer= weave_featurizer,)
-	# set character set size
-	fold5_train, test_inds = dataset.load_5fold_split()
-	test_inds = np.array(test_inds)
-	test_generator = dataset.iter_batch(32, test_inds, shuffle= True, )
-	for it in range(2):
-		for i, t in enumerate(test_generator):
-			print(len(t))
-			if i > 2:
-				break
+    filepath = '../data/kiba/'
+    weave_featurizer = WeaveFeaturizer()
+    dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
+                      problem_type= 1,  ##BUNU ARGS A EKLE
+                      seqlen= 1000,
+                      featurizer= weave_featurizer,)
+    # set character set size
+    fold5_train, test_inds = dataset.load_5fold_split()
+    test_inds = np.array(test_inds)
+    test_generator = dataset.iter_batch(32, test_inds, shuffle= True, )
+    for it in range(2):
+        for i, t in enumerate(test_generator):
+            print(it, i)
+            # if i > 2:
+            #     break

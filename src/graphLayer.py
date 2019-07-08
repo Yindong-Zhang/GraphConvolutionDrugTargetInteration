@@ -98,7 +98,7 @@ class WeaveLayer(tf.keras.layers.Layer):
         # self.b_P = model_ops.zeros(shape=[
         #   self.n_pair_output_feat,
         # ])
-        self.built = True
+        super(WeaveLayer, self).build(input_shape)
 
     def call(self, inputs):
         """Creates weave tensors.
