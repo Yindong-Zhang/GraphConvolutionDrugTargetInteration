@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.keras import Model
-from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D
+from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate
 from src.graphLayer import WeaveLayer, WeaveGather
 
 """ model subclass is more suitable for tensorflow 2.0
@@ -76,29 +76,25 @@ class ProtSeqEmbedding(Model):
 
 
 class BiInteraction(Model):
-    def __init__(self, num_filters, filter_length1, filter_length2, max_seq_length,
-                 atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_features, num_mols):
+    def __init__(self, hidden_list, activation = "sigmoid"):
         super(BiInteraction, self).__init__()
-        self.num_filters = num_filters
-        self.filter_length1 = filter_length1
-        self.filter_length2 = filter_length2
-        self.max_seq_length = max_seq_length
+        self.num_dense_layers = len(hidden_list)
+        self.activation = activation
+        self.dense_layer_list = []
+        for i in range(self.num_dense_layers):
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= 'tanh'))
+        self.out_layer = Dense(1, activation= activation)
 
-        self.atom_features = atom_features
-        self.pair_features = pair_features
-        self.atom_hidden_list = atom_hidden_list
-        self.pair_hidden_list = pair_hidden_list
-        self.graph_features = graph_features
-        self.num_mols = num_mols
-        self.graph_embedding = GraphEmbedding(atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_features, num_mols)
 
-    def call(self, input):
-        # TODO:
-        mols, prots, labels = input
-        mol_feat = self.graph_embedding(mols)
+    def call(self, graph_embed, protSeq_embed):
+        concat_embed = Concatenate(axis= -1)([graph_embed, protSeq_embed])
+        for layer in self.dense_layer_list:
+            concat_embed = layer(concat_embed)
+        return self.out_layer(concat_embed)
 
+    def compute_output_shape(self, input_shape):
+#         TODO:
         pass
-
 
 if __name__ == "__main__":
     tf.enable_eager_execution()
