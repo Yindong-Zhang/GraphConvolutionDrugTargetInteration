@@ -43,15 +43,15 @@ class GraphEmbedding(Model):
         return tf.TensorShape([self.num_mols, self.graph_features])
 
 class ProtSeqEmbedding(Model):
-    def __init__(self, num_filters_list, filter_length_list, prot_seq_length, max_seq_length):
+    def __init__(self, num_filters_list, filter_length_list, prot_char_size, max_seq_length):
         super(ProtSeqEmbedding, self).__init__()
-        self.prot_seq_length = prot_seq_length
+        self.prot_seq_length = prot_char_size
         self.max_seq_length = max_seq_length
         assert len(num_filters_list) == len(filter_length_list), "Incompatibe hyperparameters."
         self.num_conv_layers = len(num_filters_list)
         self.num_filters_list = num_filters_list
         self.filter_length_list = filter_length_list
-        self.embed =  Embedding(input_dim= prot_seq_length+1, output_dim=128,  input_length= max_seq_length)
+        self.embed =  Embedding(input_dim=prot_char_size + 1, output_dim=128, input_length= max_seq_length)
         self.conv_layer_list = []
         for i in range(self.num_conv_layers):
             self.conv_layer_list.append(Conv1D(filters= num_filters_list[i],
@@ -82,8 +82,8 @@ class BiInteraction(Model):
         self.activation = activation
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
-            self.dense_layer_list.append(Dense(hidden_list[i], activation= 'tanh'))
-        self.out_layer = Dense(1, activation= activation)
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation))
+        self.out_layer = Dense(1)
 
 
     def call(self, graph_embed, protSeq_embed):
@@ -93,8 +93,8 @@ class BiInteraction(Model):
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
-#         TODO:
-        pass
+        (batchsize, graph_dim), (batchsize, prot_dim) = input_shape
+        return tf.TensorShape((batchsize, 1))
 
 if __name__ == "__main__":
     tf.enable_eager_execution()

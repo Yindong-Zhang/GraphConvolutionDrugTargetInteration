@@ -1,14 +1,13 @@
-import sys, re, math, time
 import numpy as np
-import matplotlib.pyplot as plt
 import json
 import pickle
 import collections
 from collections import OrderedDict
-from matplotlib.pyplot import cm
-from deepchem.feat import WeaveFeaturizer
+import os
+from src.featurizer import WeaveFeaturizer
 import random
 from rdkit.Chem import MolFromSmiles
+import math
 #from keras.preprocessing.sequence import pad_sequences
 
 
@@ -34,7 +33,7 @@ CHARPROTSET = { "A": 1, "C": 2, "B": 3, "E": 4, "D": 5, "G": 6,
 				"V": 22, "Y": 23, "X": 24,
 				"Z": 25 }
 
-CHARPROTLEN = 25
+PROTCHARSIZE = 25
 
 CHARCANSMISET = { "#": 1, "%": 2, ")": 3, "(": 4, "+": 5, "-": 6,
 				  ".": 7, "1": 8, "0": 9, "3": 10, "2": 11, "5": 12,
@@ -179,7 +178,7 @@ def gather_mol(mols):
 
 # works for large dataset
 class DataSet():
-    def __init__(self, problem_type, fpath, seqlen, featurizer, is_log):
+    def __init__(self, fpath, seqlen, featurizer, is_log, setting_no = 1):
         self.SEQLEN = seqlen
         self.charseqset = CHARPROTSET
         # self.charseqset_size = CHARPROTLEN
@@ -187,7 +186,7 @@ class DataSet():
         # self.charsmiset = CHARISOSMISET ###HERE CAN BE EDITED
         # self.charsmiset_size = CHARISOSMILEN
         self.filepath = fpath
-        self.problem_type = problem_type
+        self.problem_type = setting_no
         self.featurizer = featurizer
         self.is_log = is_log
         self.mol_list, self.protSeq_list, self.labels = self.parse_data(is_log)
@@ -196,18 +195,18 @@ class DataSet():
         setting_no = self.problem_type
         print("Reading %s start" % self.filepath)
 
-        test_fold = json.load(open(self.filepath + "folds/test_fold_setting" + str(setting_no)+".txt"))
-        train_folds = json.load(open(self.filepath + "folds/train_fold_setting" + str(setting_no)+".txt"))
+        test_fold = json.load(open(os.path.join(self.filepath, "folds/test_fold_setting" + str(setting_no)+".txt")))
+        train_folds = json.load(open(os.path.join(self.filepath, "folds/train_fold_setting" + str(setting_no)+".txt")))
 
         return train_folds, test_fold
 
     def parse_data(self, is_log= True):
-        print("Read %s start" % self.filepath)
+        print("Reading %s..." % self.filepath)
 
-        ligands = json.load(open(self.filepath+"ligands_can.txt"), object_pairs_hook=OrderedDict)
-        proteins = json.load(open(self.filepath+"proteins.txt"), object_pairs_hook=OrderedDict)
+        ligands = json.load(open(os.path.join(self.filepath, "ligands_can.txt")), object_pairs_hook=OrderedDict)
+        proteins = json.load(open(os.path.join(self.filepath, "proteins.txt")), object_pairs_hook=OrderedDict)
 
-        Y = pickle.load(open(self.filepath + "Y","rb"), encoding='latin1') ### TODO: read from raw
+        Y = pickle.load(open(os.path.join(self.filepath, "Y"), "rb"), encoding='latin1') ### TODO: read from raw
         if is_log:
             Y = -(np.log10(Y/(math.pow(10,9))))
 
@@ -219,6 +218,14 @@ class DataSet():
         return mol_list, prot_list, Y
 
     def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
+        """
+
+        :param batchsize:
+        :param inds: a list of inds to use in dataset.
+        :param shuffle:
+        :param seed:
+        :return:
+        """
         mol_list, prot_list, aff_mat = self.mol_list, self.protSeq_list, self.labels
         mol_array = np.array(mol_list)
         prot_array = np.array(prot_list)
@@ -244,15 +251,15 @@ if __name__ == '__main__':
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
     dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
-                      problem_type= 1,  ##BUNU ARGS A EKLE
+                      setting_no= 1,  ##BUNU ARGS A EKLE
                       seqlen= 1000,
-                      featurizer= weave_featurizer,)
+                      featurizer= weave_featurizer,
+                      is_log= True)
     # set character set size
     fold5_train, test_inds = dataset.load_5fold_split()
     test_inds = np.array(test_inds)
-    test_generator = dataset.iter_batch(32, test_inds, shuffle= True, )
     for it in range(2):
-        for i, t in enumerate(test_generator):
+        for i, t in enumerate(dataset.iter_batch(32, test_inds, shuffle= True, )):
             print(it, i)
             # if i > 2:
             #     break

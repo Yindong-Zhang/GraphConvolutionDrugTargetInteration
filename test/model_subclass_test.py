@@ -1,4 +1,4 @@
-from src.model_subclass import GraphEmbedding, ProtSeqEmbedding
+from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
 import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
 from deepchem.feat import WeaveFeaturizer
@@ -13,7 +13,7 @@ def protSeqEmbedding_test():
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
     dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
-                      problem_type=1,  ##BUNU ARGS A EKLE
+                      setting_no=1,  ##BUNU ARGS A EKLE
                       seqlen=1000,
                       featurizer=weave_featurizer,
                       is_log= False)
@@ -50,7 +50,7 @@ def graphEmbedding_test():
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
     dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
-                      problem_type=1,  ##BUNU ARGS A EKLE
+                      setting_no=1,  ##BUNU ARGS A EKLE
                       seqlen=1000,
                       featurizer=weave_featurizer,
                       is_log=False)
@@ -88,6 +88,32 @@ def graphEmbedding_test():
             grads = tape.gradient(loss_tensor, model.trainable_variables)
             optimizer.apply_gradients(zip(grads, model.trainable_variables), global_step=tf.train.get_or_create_global_step())
 
+
+def biInteraction_test():
+    mol_dim = 16
+    prot_dim = 32
+    num_samples = 2000
+    mol_array = np.random.rand(num_samples, mol_dim)
+    prot_array = np.random.rand(num_samples, prot_dim)
+    labels = np.random.rand(num_samples, 1)
+    dataset = tf.data.Dataset.from_tensor_slices((mol_array, prot_array, labels))
+    dataset = dataset.shuffle(1000).batch(32)
+    # iterator = dataset.make_initializable_iterator()
+
+
+    model = BiInteraction([16, 8, 8])
+    optimizer = tf.train.AdamOptimizer(learning_rate= 0.1)
+    for epoch in range(2):
+        for it, (batch_mol, batch_prot, labels) in enumerate(dataset.take(20)):
+            with tf.GradientTape() as tape:
+                logit = model(batch_mol, batch_prot)
+                print(logit.numpy(), labels.numpy())
+                loss_tensor = tf.losses.mean_squared_error(labels, logit)
+
+            grads = tape.gradient(loss_tensor, model.variables)
+            optimizer.apply_gradients(zip(grads, model.variables))
+
 if __name__ == "__main__":
-    # protSeqEmbedding_test()
-    graphEmbedding_test()
+    protSeqEmbedding_test()
+    # graphEmbedding_test()
+    # biInteraction_test()

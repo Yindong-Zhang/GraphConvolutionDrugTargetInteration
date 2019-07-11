@@ -12,7 +12,7 @@ def graph_embedding_test():
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
     dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
-                      problem_type=1,  ##BUNU ARGS A EKLE
+                      setting_no=1,  ##BUNU ARGS A EKLE
                       seqlen=1000,
                       featurizer=weave_featurizer,
                       is_log= False)
@@ -60,7 +60,7 @@ def protSeqEmbedding_test():
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
     dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
-                      problem_type=1,  ##BUNU ARGS A EKLE
+                      setting_no=1,  ##BUNU ARGS A EKLE
                       seqlen=1000,
                       featurizer=weave_featurizer,
                       is_log= False)
