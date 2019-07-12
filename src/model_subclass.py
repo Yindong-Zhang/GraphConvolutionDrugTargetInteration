@@ -25,7 +25,7 @@ class GraphEmbedding(Model):
             self.weaveLayer_list.append(
                 WeaveLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i]))
 
-        self.dense = Dense(self.graph_features, activation='tanh')
+        self.dense = Dense(self.graph_features, activation='relu')
         self.batchnorm = BatchNormalization()
         self.weavegather = WeaveGather(self.num_mols, self.graph_features, gaussian_expand=True)
 
@@ -76,7 +76,7 @@ class ProtSeqEmbedding(Model):
 
 
 class BiInteraction(Model):
-    def __init__(self, hidden_list, dropout, activation = "sigmoid"):
+    def __init__(self, hidden_list, dropout, activation = "relu"):
         super(BiInteraction, self).__init__()
         self.num_dense_layers = len(hidden_list)
         self.activation = activation

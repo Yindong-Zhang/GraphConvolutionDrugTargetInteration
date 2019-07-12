@@ -20,6 +20,7 @@ parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
 parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [16, 8], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--graph_features", type= int, default= 32, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 16], help = "hidden dimension list in BiInteraction model.")
@@ -71,6 +72,7 @@ biInteraction_model = BiInteraction(hidden_list= args.biInteraction_hidden, drop
 def loop_dataset(indices, optimizer = None):
     mean_loss = 0
     mean_ci = 0
+    count = len(indices) // args.batchsize
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
             dataset.iter_batch(args.batchsize, indices, shuffle=True, )):
         # print(it)
@@ -94,7 +96,7 @@ def loop_dataset(indices, optimizer = None):
             optimizer.apply_gradients(zip(grads, vars), global_step=tf.train.get_or_create_global_step())
 
         if it % args.print_every == 0:
-            print("%s: mean_loss: %s ci: %s. " %(it, mean_loss, mean_ci))
+            print("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
 
 
     return mean_loss, mean_ci
@@ -104,11 +106,11 @@ wait = 0
 for epoch in range(args.epoches):
     print("training epoch %s..." %(epoch, ))
     train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
-    print("train epoch %s loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
+    print("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
     print("validating epoch %s..." %(epoch, ))
     val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
-    print("validating epoch %s loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
+    print("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
     if val_loss < best_metric:
         best_metric = val_loss
         graph_embedding_model.save_weights(os.path.join(chkpt_dir, "graph_embedding_model"), )
@@ -127,4 +129,4 @@ biInteraction_model.load_weights(os.path.join(chkpt_dir, "biInteraction_model"))
 
 print("start testing...")
 test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
-print("test loss: %s ci: %.4f \n" %(test_loss, test_ci))
+print("test loss: %.4f ci: %.4f \n" %(test_loss, test_ci))

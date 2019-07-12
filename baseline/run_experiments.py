@@ -43,6 +43,7 @@ from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras import optimizers, layers
 
 
+
 import sys, pickle, os
 import math, json, time
 import decimal
@@ -363,7 +364,9 @@ def general_nfold_cv(XD, XT,  Y, label_row_inds, label_col_inds, prfmeasure, run
 
                     gridmodel = runmethod(FLAGS, param1value, param2value, param3value)
                     gridres = gridmodel.fit(([np.array(train_drugs),np.array(train_prots) ]), np.array(train_Y), batch_size=batchsz, epochs=epoch, 
-                            validation_data=( ([np.array(val_drugs), np.array(val_prots) ]), np.array(val_Y)),  shuffle=False ) 
+                            validation_data=( ([np.array(val_drugs), np.array(val_prots) ]), np.array(val_Y)),
+                                            shuffle=False,
+                                            callbacks = [EarlyStopping(monitor= "val_loss", patience= 4)])
 
 
                     predicted_labels = gridmodel.predict([np.array(val_drugs), np.array(val_prots) ])
