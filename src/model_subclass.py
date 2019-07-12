@@ -1,6 +1,6 @@
 import tensorflow as tf
 from tensorflow.python.keras import Model
-from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate
+from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate, Dropout
 from src.graphLayer import WeaveLayer, WeaveGather
 
 """ model subclass is more suitable for tensorflow 2.0
@@ -76,10 +76,11 @@ class ProtSeqEmbedding(Model):
 
 
 class BiInteraction(Model):
-    def __init__(self, hidden_list, activation = "sigmoid"):
+    def __init__(self, hidden_list, dropout, activation = "sigmoid"):
         super(BiInteraction, self).__init__()
         self.num_dense_layers = len(hidden_list)
         self.activation = activation
+        self.dropout= dropout
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
             self.dense_layer_list.append(Dense(hidden_list[i], activation= activation))
@@ -90,6 +91,7 @@ class BiInteraction(Model):
         concat_embed = Concatenate(axis= -1)([graph_embed, protSeq_embed])
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
+            concat_embed = Dropout(self.dropout)(concat_embed)
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):

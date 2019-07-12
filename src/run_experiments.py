@@ -23,10 +23,10 @@ import tensorflow.python.keras as keras
 # K.set_session(sess)
 
 
-from src.data_utils import *
+from .data_utils import *
 #import logging
 from itertools import product
-from src.arguments import argparser, logging
+from .arguments import argparser, logging
 
 from tensorflow.python.keras.preprocessing import sequence
 from tensorflow.python.keras.models import Sequential, load_model, Model

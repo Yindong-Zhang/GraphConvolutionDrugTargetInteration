@@ -1,13 +1,17 @@
 import argparse
-import os
+import os, sys
+curPath = os.path.abspath(os.path.dirname(__file__))
+rootPath = os.path.split(curPath)[0]
+sys.path.append(rootPath)
+
 import numpy as np
 from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
 from src.data_utils import DataSet, PROTCHARSIZE
 from src.utils import make_config_str
-from deepchem.feat import WeaveFeaturizer
+from src.featurizer import WeaveFeaturizer
 from itertools import chain
 import tensorflow as tf
-
+from pprint import pprint
 tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
@@ -15,17 +19,19 @@ parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
 parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [16, 8], help = "pair hidden dimension list in graph embedding model.")
-parser.add_argument("--graph_features", type= int, default= 32, help= "graph embedding dimension in graph embedding model.")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 16], help = "hidden dimension list in BiInteraction model.")
-parser.add_argument("--epoches", type= int, default= 1, help= "epoches during training..")
+parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
+parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 32, help= "print intervals during loop dataset.")
 args = parser.parse_args()
 
-# configStr = make_config_str(args)
-configStr = "test"
+
+pprint(vars(args))
+configStr = make_config_str(args)
+# configStr = "test"
 chkpt_dir = os.path.join("../checkpoint", configStr)
 if not os.path.exists(chkpt_dir):
     os.makedirs(chkpt_dir)
@@ -51,14 +57,14 @@ graph_embedding_model = GraphEmbedding(atom_features= atom_dim,
                                        pair_features= pair_dim,
                                        atom_hidden_list= args.atom_hidden,
                                        pair_hidden_list= args.pair_hidden,
-                                       graph_feat= args.graph_features,
+                                       graph_feat= args.atom_hidden[-1],
                                        num_mols= args.batchsize)
 protSeq_embedding_model = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            filter_length_list= args.filters_length,
                                            prot_char_size= PROTCHARSIZE,
                                            max_seq_length= PROTSEQLENGTH,
                                            )
-biInteraction_model = BiInteraction(hidden_list= args.biInteraction_hidden, activation= None)
+biInteraction_model = BiInteraction(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= None)
 
 
 def loop_dataset(indices, optimizer = None):

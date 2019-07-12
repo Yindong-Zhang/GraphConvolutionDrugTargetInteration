@@ -2,7 +2,6 @@ import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
 from tensorflow.python.keras import initializers, activations
 
-
 class WeaveLayer(tf.keras.layers.Layer):
 
     def __init__(self,
@@ -162,7 +161,7 @@ class WeaveGather(tf.keras.layers.Layer):
     def __init__(self,
                  num_mols,
                  n_input=128,
-                 gaussian_expand=False,
+                 gaussian_expand= True,
                  init='glorot_uniform',
                  activation='tanh',
                  epsilon=1e-3,
@@ -219,7 +218,7 @@ class WeaveGather(tf.keras.layers.Layer):
                                 (0.228, 0.114), (0.468, 0.118), (0.739, 0.134),
                                 (1.080, 0.170), (1.645, 0.283)]
         dist = [
-            tf.contrib.distributions.Normal(p[0], p[1])
+            tf.distributions.Normal(p[0], p[1])
             for p in gaussian_memberships
         ]
         dist_max = [dist[i].prob(gaussian_memberships[i][0]) for i in range(11)]

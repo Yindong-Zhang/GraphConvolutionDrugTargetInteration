@@ -1,7 +1,7 @@
 from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
 import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
-from deepchem.feat import WeaveFeaturizer
+from src.featurizer import WeaveFeaturizer
 from src.data_utils import DataSet
 from itertools import chain
 import numpy as np

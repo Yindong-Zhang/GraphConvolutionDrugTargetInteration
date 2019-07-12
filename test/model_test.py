@@ -2,7 +2,7 @@ from tensorflow.python.keras.layers import Input, Dense
 from tensorflow.python.keras import Model
 import tensorflow as tf
 from src.model import build_graph_embedding_model, build_protSeq_embedding_model
-from deepchem.feat import WeaveFeaturizer
+from src.featurizer import WeaveFeaturizer
 from src.data_utils import DataSet
 import numpy as np
 from itertools import chain
