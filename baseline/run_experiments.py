@@ -30,12 +30,12 @@ import keras
 from keras.models import Model
 from keras.preprocessing import sequence
 from keras.models import Sequential, load_model
-from keras.layers import Dense, Dropout, Activation, Merge
+from keras.layers import Dense, Dropout, Activation, concatenate
 from keras.layers import Embedding
 from keras.layers import Conv1D, GlobalMaxPooling1D, MaxPooling1D
 from keras.layers.normalization import BatchNormalization
 from keras.layers import Conv2D, GRU
-from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Masking, RepeatVector, merge, Flatten
+from keras.layers import Input, Embedding, LSTM, Dense, TimeDistributed, Masking, RepeatVector, Concatenate, Flatten
 from keras.models import Model
 from keras.utils import plot_model
 from keras.layers import Bidirectional
@@ -160,7 +160,7 @@ def build_single_drug(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
     encode_smiles.add(GlobalMaxPooling1D())
 
 
-    interactionModel.add(Merge([encode_smiles, XTmodel], mode='concat', concat_axis=1))
+    interactionModel.add(concatenate([encode_smiles, XTmodel], mode='concat', concat_axis=1))
     #interactionModel.add(layers.merge.Concatenate([XDmodel, XTmodel]))
 
     # Fully connected 
@@ -195,7 +195,7 @@ def build_single_prot(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
     XTmodel1.add(GlobalMaxPooling1D())
 
 
-    interactionModel.add(Merge([XDmodel, XTmodel1], mode='concat', concat_axis=1))
+    interactionModel.add(concatenate([XDmodel, XTmodel1], mode='concat', concat_axis=1))
 
     # Fully connected 
     interactionModel.add(Dense(1024, activation='relu'))
@@ -222,7 +222,7 @@ def build_baseline(FLAGS, NUM_FILTERS, FILTER_LENGTH1, FILTER_LENGTH2):
     XTmodel.add(Dense(1, activation='linear', input_shape=(FLAGS.target_count,)))
 
 
-    interactionModel.add(Merge([XDmodel, XTmodel], mode='concat', concat_axis=1))
+    interactionModel.add(concatenate([XDmodel, XTmodel], mode='concat', concat_axis=1))
 
     # Fully connected 
     interactionModel.add(Dense(1024, activation='relu'))

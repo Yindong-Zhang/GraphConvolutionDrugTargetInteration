@@ -70,7 +70,7 @@ def argparser():
   parser.add_argument(
       '--dataset_path',
       type=str,
-      default='/data/kiba/',
+      default='../data/kiba/',
       help='Directory for input data.'
   )
   parser.add_argument(
@@ -100,7 +100,7 @@ def argparser():
   parser.add_argument(
       '--log_dir',
       type=str,
-      default='/tmp',
+      default='./log',
       help='Directory for log data.'
   )
 

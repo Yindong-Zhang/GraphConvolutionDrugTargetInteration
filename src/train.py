@@ -11,6 +11,7 @@ from src.utils import make_config_str
 from src.featurizer import WeaveFeaturizer
 from itertools import chain
 import tensorflow as tf
+from src.emetrics import cindex_score
 from pprint import pprint
 tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
@@ -69,6 +70,7 @@ biInteraction_model = BiInteraction(hidden_list= args.biInteraction_hidden, drop
 
 def loop_dataset(indices, optimizer = None):
     mean_loss = 0
+    mean_ci = 0
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
             dataset.iter_batch(args.batchsize, indices, shuffle=True, )):
         # print(it)
@@ -79,31 +81,34 @@ def loop_dataset(indices, optimizer = None):
             logit = biInteraction_model(graph_embed, prot_embed)
             # print(logit.numpy(), labels)
             loss_tensor = tf.losses.mean_squared_error(labels, logit)
-
+            ci_tensor = cindex_score(labels, logit)
 
         loss_value = loss_tensor.numpy().mean()
+        ci_value = ci_tensor.numpy()
+
         mean_loss = (it * mean_loss + loss_value) / (it + 1)
+        mean_ci = (it * mean_ci + ci_value) / (it + 1)
         if optimizer:
             vars = graph_embedding_model.variables + protSeq_embedding_model.variables + biInteraction_model.variables
             grads = tape.gradient(loss_tensor, vars)
             optimizer.apply_gradients(zip(grads, vars), global_step=tf.train.get_or_create_global_step())
 
         if it % args.print_every == 0:
-            print("%s: mean_loss: %s. " %(it, mean_loss))
+            print("%s: mean_loss: %s ci: %s. " %(it, mean_loss, mean_ci))
 
 
-    return mean_loss
+    return mean_loss, mean_ci
 
 best_metric = float("inf")
 wait = 0
 for epoch in range(args.epoches):
     print("training epoch %s..." %(epoch, ))
-    train_loss = loop_dataset(val_inds, optimizer = optimizer)
-    print("train epoch %s loss %.4f" %(epoch, train_loss))
+    train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
+    print("train epoch %s loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
     print("validating epoch %s..." %(epoch, ))
-    val_loss = loop_dataset(val_inds, optimizer= None)
-    print("validating epoch %s loss %.4f." %(epoch, val_loss))
+    val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
+    print("validating epoch %s loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
     if val_loss < best_metric:
         best_metric = val_loss
         graph_embedding_model.save_weights(os.path.join(chkpt_dir, "graph_embedding_model"), )
@@ -121,5 +126,5 @@ protSeq_embedding_model.load_weights(os.path.join(chkpt_dir, "protSeq_embedding_
 biInteraction_model.load_weights(os.path.join(chkpt_dir, "biInteraction_model"))
 
 print("start testing...")
-test_loss = loop_dataset(test_inds, optimizer= None)
-print("test loss: %s" %(test_loss, ))
+test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
+print("test loss: %s ci: %.4f \n" %(test_loss, test_ci))
