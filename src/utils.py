@@ -21,5 +21,11 @@ def list2str(ls):
     listStr = str(ls)
     newStr = listStr.replace('[', '(').replace(']', ')')
     return newStr
+
+def log(obj, f):
+    obj_str = str(obj)
+    print(obj_str)
+    print(obj_str, file = f)
+
 if __name__ == "__main__":
     make_config_str({"a": 1, "b": [1, 2]})

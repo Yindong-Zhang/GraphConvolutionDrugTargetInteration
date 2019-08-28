@@ -25,7 +25,7 @@ class GraphEmbedding(Model):
             self.weaveLayer_list.append(
                 WeaveLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i]))
 
-        self.dense = Dense(self.graph_features, activation='relu')
+        self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
         self.weavegather = WeaveGather(self.num_mols, self.graph_features, gaussian_expand=True)
 

@@ -106,15 +106,11 @@ class WeaveLayer(tf.keras.layers.Layer):
         """
         atom_features, pair_features, pair_split, atom_to_pair = inputs
 
-        # AA = tf.matmul(atom_features, self.W_AA) + self.b_AA
-        # AA = activation(AA)
         AA = self.linear_aa(atom_features)
-        # PA = tf.matmul(pair_features, self.W_PA) + self.b_PA
-        # PA = activation(PA)
         PA = self.linear_pa(pair_features)
         PA = tf.segment_sum(PA, pair_split)
 
-        atom_hidden = tf.concat([AA, PA], 1)
+        atom_hidden = tf.concat([AA, PA], -1)
         A = self.linear_ao(atom_hidden)
         # A = tf.matmul(tf.concat([AA, PA], 1), self.W_A) + self.b_A
         # A = activation(A)
@@ -141,7 +137,7 @@ class WeaveLayer(tf.keras.layers.Layer):
             # PP = tf.matmul(pair_features, self.W_PP) + self.b_PP
             # PP = activation(PP)
 
-            P = self.linear_po(tf.concat([AP_ij + AP_ji, PP], 1))
+            P = self.linear_po(tf.concat([AP_ij + AP_ji, PP], -1))
             # P = tf.matmul(tf.concat([AP_ij + AP_ji, PP], 1), self.W_P) + self.b_P
             # P = activation(P)
         else:
@@ -230,3 +226,14 @@ class WeaveGather(tf.keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         shape = tf.TensorShape([self.batch_size, self.n_input])
+
+class WeightedGather(tf.keras.layers.Layer):
+    def __init__(self, ):
+        pass
+
+
+    def call(self, inputs):
+
+        atom_features, atom_split, protSeq_features = inputs
+
+

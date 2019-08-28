@@ -12,7 +12,9 @@ from src.featurizer import WeaveFeaturizer
 from itertools import chain
 import tensorflow as tf
 from src.emetrics import cindex_score
+from src.utils import log
 from pprint import pprint
+from functools import partial
 tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
@@ -37,6 +39,9 @@ configStr = make_config_str(args)
 chkpt_dir = os.path.join("../checkpoint", configStr)
 if not os.path.exists(chkpt_dir):
     os.makedirs(chkpt_dir)
+
+log_f = open("../log/%s.log" %(configStr, ), 'w')
+printf = partial(log, f = log_f)
 
 filepath = "../data/%s" %(args.dataset, )
 weave_featurizer = WeaveFeaturizer()
@@ -96,7 +101,7 @@ def loop_dataset(indices, optimizer = None):
             optimizer.apply_gradients(zip(grads, vars), global_step=tf.train.get_or_create_global_step())
 
         if it % args.print_every == 0:
-            print("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
+            printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
 
 
     return mean_loss, mean_ci
@@ -104,13 +109,13 @@ def loop_dataset(indices, optimizer = None):
 best_metric = float("inf")
 wait = 0
 for epoch in range(args.epoches):
-    print("training epoch %s..." %(epoch, ))
+    printf("training epoch %s..." %(epoch, ))
     train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
-    print("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
+    printf("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
-    print("validating epoch %s..." %(epoch, ))
+    printf("validating epoch %s..." %(epoch, ))
     val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
-    print("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
+    printf("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
     if val_loss < best_metric:
         best_metric = val_loss
         graph_embedding_model.save_weights(os.path.join(chkpt_dir, "graph_embedding_model"), )
@@ -127,6 +132,6 @@ graph_embedding_model.load_weights(os.path.join(chkpt_dir, "graph_embedding_mode
 protSeq_embedding_model.load_weights(os.path.join(chkpt_dir, "protSeq_embedding_model"))
 biInteraction_model.load_weights(os.path.join(chkpt_dir, "biInteraction_model"))
 
-print("start testing...")
+printf("start testing...")
 test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
-print("test loss: %.4f ci: %.4f \n" %(test_loss, test_ci))
+printf("test loss: %.4f ci: %.4f \n" %(test_loss, test_ci))
