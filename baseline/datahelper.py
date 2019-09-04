@@ -139,8 +139,8 @@ class DataSet(object):
     fpath = FLAGS.dataset_path	
     print("Read %s start" % fpath)
 
-    ligands = json.load(open(fpath+"ligands_can.txt"), object_pairs_hook=OrderedDict)
-    proteins = json.load(open(fpath+"proteins.txt"), object_pairs_hook=OrderedDict)
+    ligands = json.load(open(fpath+"ligands_can.json"), object_pairs_hook=OrderedDict)
+    proteins = json.load(open(fpath+"proteins.json"), object_pairs_hook=OrderedDict)
 
     Y = pickle.load(open(fpath + "Y","rb"), encoding='latin1') ### TODO: read from raw
     if FLAGS.is_log:

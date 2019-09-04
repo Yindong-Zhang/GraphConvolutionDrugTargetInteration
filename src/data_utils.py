@@ -113,8 +113,8 @@ def label_sequence(line, MAX_SEQ_LEN, smi_ch_ind):
 def load_data(filepath, seqlen, featurizer, problem_type, is_log):
     print("Read %s start" %(filepath, ))
 
-    ligands = json.load(open(filepath + "ligands_can.txt"), object_pairs_hook=OrderedDict)
-    proteins = json.load(open(filepath + "proteins.txt"), object_pairs_hook=OrderedDict)
+    ligands = json.load(open(filepath + "ligands_can.json"), object_pairs_hook=OrderedDict)
+    proteins = json.load(open(filepath + "proteins.json"), object_pairs_hook=OrderedDict)
 
     Y = pickle.load(open(filepath + "Y", "rb"), encoding='latin1')  ### TODO: read from raw
     if is_log:
@@ -203,8 +203,8 @@ class DataSet():
     def parse_data(self, is_log= True):
         print("Reading %s..." % self.filepath)
 
-        ligands = json.load(open(os.path.join(self.filepath, "ligands_can.txt")), object_pairs_hook=OrderedDict)
-        proteins = json.load(open(os.path.join(self.filepath, "proteins.txt")), object_pairs_hook=OrderedDict)
+        ligands = json.load(open(os.path.join(self.filepath, "ligands_can.json")), object_pairs_hook=OrderedDict)
+        proteins = json.load(open(os.path.join(self.filepath, "proteins.json")), object_pairs_hook=OrderedDict)
 
         Y = pickle.load(open(os.path.join(self.filepath, "Y"), "rb"), encoding='latin1') ### TODO: read from raw
         if is_log:
