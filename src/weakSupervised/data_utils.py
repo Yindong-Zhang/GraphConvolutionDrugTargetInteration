@@ -1,40 +1,55 @@
 import pandas as pd
 import os
-import tensorflow as tf
 from src.featurizer import WeaveFeaturizer
 from rdkit.Chem import MolFromSmiles
 from src.data_utils import gather_mol
 import numpy as np
-tf.enable_eager_execution()
+from sklearn.model_selection import train_test_split
 
-def create_dataset(batchsize = 32):
-    dataDir = '../../data/kiba-origin/'
+def load_fn(dataDir= '../../data/kiba-origin/', batchsize = 32, shuffle = True, seed = 32):
+    """
+
+    :param dataDir:
+    :param batchsize:
+    :param shuffle:
+    :param seed:
+    :return: iterable train val test dataset
+    """
     df = pd.read_csv(os.path.join(dataDir, "kiba_props.csv"))
-    smiles = df['smiles'].values
-    props = df[[column for column in df.columns if column != 'smiles']].values
-    dataset = tf.data.Dataset.from_tensor_slices((smiles, props))
-    dataset.shuffle(2000).repeat().batch(batchsize)
+    prop_array = df[[column for column in df.columns if column != 'smiles']].values
+    smiles_list = df['smiles'].tolist()
+    train_val_smiles, test_smiles, train_val_props, test_props = train_test_split(smiles_list, prop_array)
+    train_smiles, train_props, val_smiles, val_props = train_test_split(train_val_smiles, train_val_props)
+    return DataSet(train_smiles, train_props, batchsize, shuffle, seed), \
+           DataSet(val_smiles, val_props, batchsize, shuffle, seed), \
+           DataSet(test_smiles, test_props, batchsize, shuffle, seed)
 
-    return dataset
 
 class DataSet():
-    def __init__(self, dataDir= '../../data/kiba-origin/', is_log= True, setting_no = 1):
+    def __init__(self,
+                 smiles_list,
+                 prop_array,
+                 batchsize,
+                 shuffle = True,
+                 seed = 32,
+                 ):
+        """
 
-        # self.charsmiset = CHARISOSMISET ###HERE CAN BE EDITED
-        # self.charsmiset_size = CHARISOSMILEN
-        self.filepath = dataDir
-        self.problem_type = setting_no
+        :param smiles_list: ar
+        :param prop_array:
+        :param batchsize:
+        :param shuffle:
+        :param seed:
+        """
         self.featurizer = WeaveFeaturizer()
-        self.is_log = is_log
-        df = pd.read_csv(os.path.join(dataDir, "kiba_props.csv"))
-        self.smiles_list = df['smiles'].tolist()
-        props = df[[column for column in df.columns if column != 'smiles']].values
-        self.props = props
-        self.rd_mols = [MolFromSmiles(smiles) for smiles in self.smiles_list]
-        self.mol_list = self.featurizer(self.rd_mols)
+        self.prop_array = np.array(prop_array)
+        self.mol_array = np.array(self.featurizer([MolFromSmiles(smiles) for smiles in smiles_list]))
+        self.batchsize= batchsize
+        self.seed = seed
+        self.shuffle= shuffle
 
 
-    def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
+    def __iter__(self,):
         """
 
         :param batchsize:
@@ -43,24 +58,27 @@ class DataSet():
         :param seed:
         :return:
         """
-        mol_list = self.mol_list
-        mol_array = np.array(mol_list)
-        num_samples = len(mol_list)
-        sample_inds = np.arange(num_samples)[inds]
-        num_batches = len(sample_inds) // batchsize
-        rng = np.random.RandomState(seed)
-        if shuffle:
+        num_samples = len(self.mol_array)
+        sample_inds = np.arange(num_samples)
+        num_batches = num_samples // self.batchsize
+        rng = np.random.RandomState(self.seed)
+        if self.shuffle:
             rng.shuffle(sample_inds)
 
         for i in range(num_batches):
-            batch_inds = sample_inds[ i * batchsize : ( i + 1 ) * batchsize]
-            batch_mol = mol_array[batch_inds]
+            batch_inds = sample_inds[ i * self.batchsize : min(num_samples, ( i + 1 ) * self.batchsize)]
+            batch_mol = self.mol_array[batch_inds]
             batch_mol_merged = gather_mol(batch_mol)
-            yield batch_mol_merged
+            batch_props = self.prop_array[batch_inds]
+            yield batch_mol_merged, batch_props
 
 
 
 if __name__ == '__main__':
-    dataset = create_dataset(32)
-    for batch in dataset:
+    train, val, test = load_fn()
+    for i, batch in enumerate(train):
         print(batch)
+        if i > 20:
+            break
+
+
