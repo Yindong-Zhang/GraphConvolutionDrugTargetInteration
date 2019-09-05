@@ -5,10 +5,12 @@ from rdkit.Chem import MolFromSmiles
 from src.data_utils import gather_mol
 import numpy as np
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 from multiprocessing import Pool
+
 from time import  time
 NUMPROCESS = 32
-def load_fn(dataDir= '../../data/kiba-origin/', batchsize = 32, shuffle = True, seed = 32):
+def load_fn(dataset= 'kiba', batchsize = 32, shuffle = True, seed = 32):
     """
 
     :param dataDir:
@@ -17,8 +19,12 @@ def load_fn(dataDir= '../../data/kiba-origin/', batchsize = 32, shuffle = True, 
     :param seed:
     :return: iterable train val test dataset
     """
-    df = pd.read_csv(os.path.join(dataDir, "kiba_props.csv"))
+    dataDir = '../../data/kiba-origin/'
+    df = pd.read_csv(os.path.join(dataDir, "%s_props.csv" %(dataset, )))
     prop_array = df[[column for column in df.columns if column != 'smiles']].values
+
+    standardizer = StandardScaler()
+    prop_array = standardizer.fit_transform(prop_array)
     smiles_list = df['smiles'].tolist()
     train_val_smiles, test_smiles, train_val_props, test_props = train_test_split(smiles_list, prop_array)
     train_smiles, val_smiles, train_props, val_props = train_test_split(train_val_smiles, train_val_props)
@@ -49,10 +55,13 @@ class DataSet():
         self.prop_array = np.array(prop_array)
         self.smiles_list = smiles_list
         self.num_samples = len(smiles_list)
-        self.pool = Pool(NUMPROCESS)
-
-        self.apply_res = [self.pool.apply_async(featurizer, (smiles, )) for smiles in smiles_list]
-        self.mol_list = [res.get() for res in self.apply_res]
+        pool = Pool(NUMPROCESS)
+        t0 = time()
+        apply_res = [pool.apply_async(featurizer, (smiles, )) for smiles in smiles_list]
+        self.mol_list = [res.get() for res in apply_res]
+        t1 = time()
+        print('molecules featurized in %.2f seconds' %(t1 - t0, ))
+        pool.close()
 
         self.batchsize= batchsize
         self.seed = seed
@@ -80,9 +89,6 @@ class DataSet():
             batch_mol_merged = gather_mol(batch_mol)
             batch_props = self.prop_array[batch_inds]
             yield batch_mol_merged, batch_props
-
-    def __del__(self):
-        self.pool.close()
 
 
 
