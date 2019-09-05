@@ -7,6 +7,8 @@ __pycache__/
 
 # C extensions
 *.so
+data/
+checkpoint/
 
 # Distribution / packaging
 .Python
@@ -105,3 +107,20 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.idea/.gitignore
+.idea/DeepDTA.iml
+.idea/codeStyles/
+.idea/deployment.xml
+.idea/dictionaries/
+.idea/libraries/
+.idea/misc.xml
+.idea/modules.xml
+.idea/remote-mappings.xml
+.idea/vcs.xml
+baseline/log/
+data/Book1.xlsx
+data/kiba-origin/
+data/kiba/ci400709d_si_002.xlsx
+log/
+requirments.txt
+"\345\256\236\351\252\214\350\256\260\345\275\225.xlsx"
