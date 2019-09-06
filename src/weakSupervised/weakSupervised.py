@@ -2,10 +2,10 @@
 import argparse
 from src.weakSupervised.data_utils import load_fn
 import tensorflow as tf
-from src.weakSupervised.drugPropertyModel import DrugProperty
-from tensorflow.python.keras.losses import mean_squared_error
+from src.weakSupervised.drugPropertyModelSubclass import DrugProperty
+from src.weakSupervised.train_utils import loop_dataset
 import os
-from src.utils import make_config_str
+from src.utils import make_config_str, PROJPATH
 from pprint import pprint
 tf.enable_eager_execution()
 
@@ -24,7 +24,7 @@ args = parser.parse_args()
 pprint(vars(args))
 configStr = make_config_str(args)
 # configStr = "test"
-chkpt_dir = os.path.join("../../checkpoint", configStr)
+chkpt_dir = os.path.join(PROJPATH, "checkpoint/", configStr)
 atom_dim = 75
 pair_dim = 14
 props_dim = 100
@@ -33,31 +33,12 @@ model = DrugProperty(atom_features= atom_dim,
                      pair_features= pair_dim,
                      atom_hidden_list= args.atom_hidden,
                      pair_hidden_list= args.pair_hidden,
-                     graph_feat= args.atom_hidden[-1],
+                     graph_feat= args.graph_features,
                      num_mols= args.batchsize,
                      props_dim= props_dim)
 
 
 train, val, test = load_fn(dataset= args.dataset, batchsize= args.batchsize)
-
-def loop_dataset(dataset, optimizer= None):
-    mean_loss = 0
-    for it, (mols, props) in enumerate(dataset):
-        with tf.GradientTape() as tape:
-            props_pred = model(mols)
-            loss = mean_squared_error(props_pred, props)
-
-        loss_value = loss.numpy().mean()
-        mean_loss = (it * mean_loss + loss_value) / (it + 1)
-
-        if optimizer:
-            variables = model.variables
-            grads = tape.gradient(loss, variables)
-            optimizer.apply_gradients(zip(grads, variables))
-
-        if it % args.print_every == 0:
-            print("%d: loss %.4f." %(it, mean_loss))
-    return mean_loss
 
 optimizer = tf.train.AdamOptimizer(learning_rate= args.lr)
 
@@ -65,10 +46,10 @@ min_loss = float('inf')
 wait = 0
 for epoch in range(args.epoches):
     print("Epoch %d..." %(epoch, ))
-    train_loss = loop_dataset(train, optimizer)
+    train_loss = loop_dataset(train, optimizer, print_every= args.print_every)
     print("Train epoch %d: loss %.4f." %(epoch, train_loss))
 
-    val_loss = loop_dataset(val)
+    val_loss = loop_dataset(val, print_every= args.print_every)
     print("Val epoch %d: loss %.4f." %(epoch, val_loss))
 
     if val_loss < min_loss:
@@ -83,5 +64,5 @@ for epoch in range(args.epoches):
             break
 
 model.load_weights(os.path.join(chkpt_dir, 'drug_property_model'))
-test_loss = loop_dataset(test)
+test_loss = loop_dataset(test, print_every= args.print_every)
 print("Test loss: %.4f" %(test_loss, ))

@@ -43,8 +43,8 @@ class GraphEmbedding(Model):
         return tf.TensorShape([self.num_mols, self.graph_features])
 
 class ProtSeqEmbedding(Model):
-    def __init__(self, num_filters_list, filter_length_list, prot_char_size, max_seq_length):
-        super(ProtSeqEmbedding, self).__init__()
+    def __init__(self, num_filters_list, filter_length_list, prot_char_size, max_seq_length, **kwargs):
+        super(ProtSeqEmbedding, self).__init__(**kwargs)
         self.prot_seq_length = prot_char_size
         self.max_seq_length = max_seq_length
         assert len(num_filters_list) == len(filter_length_list), "Incompatibe hyperparameters."
@@ -76,8 +76,8 @@ class ProtSeqEmbedding(Model):
 
 
 class BiInteraction(Model):
-    def __init__(self, hidden_list, dropout, activation = "relu"):
-        super(BiInteraction, self).__init__()
+    def __init__(self, hidden_list, dropout, activation = "relu", **kwargs):
+        super(BiInteraction, self).__init__(**kwargs)
         self.num_dense_layers = len(hidden_list)
         self.activation = activation
         self.dropout= dropout

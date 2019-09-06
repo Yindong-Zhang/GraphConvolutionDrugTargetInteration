@@ -1,4 +1,6 @@
-
+import os
+CODEPATH = os.path.dirname(__file__)
+PROJPATH = os.path.dirname(CODEPATH)
 
 def make_config_str(args):
     """
@@ -28,4 +30,5 @@ def log(obj, f):
     print(obj_str, file = f)
 
 if __name__ == "__main__":
-    make_config_str({"a": 1, "b": [1, 2]})
+    # make_config_str({"a": 1, "b": [1, 2]})
+    pass

@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from multiprocessing import Pool
-
+from src.utils import PROJPATH
 from time import  time
 NUMPROCESS = 32
 def load_fn(dataset= 'kiba', batchsize = 32, shuffle = True, seed = 32):
@@ -19,15 +19,15 @@ def load_fn(dataset= 'kiba', batchsize = 32, shuffle = True, seed = 32):
     :param seed:
     :return: iterable train val test dataset
     """
-    dataDir = '../../data/kiba-origin/'
+    dataDir = os.path.join(PROJPATH, 'data/kiba-origin/')
     df = pd.read_csv(os.path.join(dataDir, "%s_props.csv" %(dataset, )))
     prop_array = df[[column for column in df.columns if column != 'smiles']].values
 
     standardizer = StandardScaler()
     prop_array = standardizer.fit_transform(prop_array)
     smiles_list = df['smiles'].tolist()
-    train_val_smiles, test_smiles, train_val_props, test_props = train_test_split(smiles_list, prop_array)
-    train_smiles, val_smiles, train_props, val_props = train_test_split(train_val_smiles, train_val_props)
+    train_val_smiles, test_smiles, train_val_props, test_props = train_test_split(smiles_list, prop_array, test_size= 0.2)
+    train_smiles, val_smiles, train_props, val_props = train_test_split(train_val_smiles, train_val_props, test_size= 0.1)
     return DataSet(train_smiles, train_props, batchsize, shuffle, seed), \
            DataSet(val_smiles, val_props, batchsize, shuffle, seed), \
            DataSet(test_smiles, test_props, batchsize, shuffle, seed)

@@ -8,7 +8,6 @@ from src.featurizer import WeaveFeaturizer
 import random
 from rdkit.Chem import MolFromSmiles
 import math
-#from keras.preprocessing.sequence import pad_sequences
 
 
 ## ######################## ##
@@ -248,18 +247,18 @@ class DataSet():
             yield batch_mol_merged, batch_prot, labels
 
 if __name__ == '__main__':
-    filepath = '../data/kiba/'
-    weave_featurizer = WeaveFeaturizer()
-    dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
-                      setting_no= 1,  ##BUNU ARGS A EKLE
-                      seqlen= 1000,
-                      featurizer= weave_featurizer,
-                      is_log= True)
-    # set character set size
-    fold5_train, test_inds = dataset.load_5fold_split()
-    test_inds = np.array(test_inds)
-    for it in range(2):
-        for i, t in enumerate(dataset.iter_batch(32, test_inds, shuffle= True, )):
-            print(it, i)
-            # if i > 2:
-            #     break
+    print(projPath)
+    # filepath = '../data/kiba/'
+    # weave_featurizer = WeaveFeaturizer()
+    # dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
+    #                   setting_no= 1,  ##BUNU ARGS A EKLE
+    #                   seqlen= 1000,
+    #                   featurizer= weave_featurizer,
+    #                   is_log= True)
+    # fold5_train, test_inds = dataset.load_5fold_split()
+    # test_inds = np.array(test_inds)
+    # for it in range(2):
+    #     for i, t in enumerate(dataset.iter_batch(32, test_inds, shuffle= True, )):
+    #         print(it, i)
+    #         if i > 2:
+    #             break

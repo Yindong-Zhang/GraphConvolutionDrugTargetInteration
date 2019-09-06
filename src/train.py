@@ -1,14 +1,12 @@
 import argparse
 import os, sys
-curPath = os.path.abspath(os.path.dirname(__file__))
-rootPath = os.path.split(curPath)[0]
-sys.path.append(rootPath)
-
 import numpy as np
 from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
 from src.data_utils import DataSet, PROTCHARSIZE
-from src.utils import make_config_str
+from src.utils import make_config_str, PROJPATH
 from src.featurizer import WeaveFeaturizer
+from tensorflow.python.keras.layers import Input, Dense
+from tensorflow.python.keras import Model
 from itertools import chain
 import tensorflow as tf
 from src.emetrics import cindex_score
@@ -18,6 +16,7 @@ from functools import partial
 tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
+parser.add_argument("--pretrain", type= bool, default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
@@ -30,20 +29,21 @@ parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate 
 parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 32, help= "print intervals during loop dataset.")
+
 args = parser.parse_args()
 
 
 pprint(vars(args))
 configStr = make_config_str(args)
 # configStr = "test"
-chkpt_dir = os.path.join("../checkpoint", configStr)
+chkpt_dir = os.path.join(PROJPATH, "checkpoint/", configStr)
 if not os.path.exists(chkpt_dir):
     os.makedirs(chkpt_dir)
 
-log_f = open("../log/%s.log" %(configStr, ), 'w')
+log_f = open(os.path.join(PROJPATH, "log/%s.log" %(configStr, )), 'w')
 printf = partial(log, f = log_f)
 
-filepath = "../data/%s" %(args.dataset, )
+filepath = os.path.join(PROJPATH, "data/%s/" %(args.dataset, ))
 weave_featurizer = WeaveFeaturizer()
 
 PROTSEQLENGTH= 1000
@@ -58,21 +58,42 @@ test_inds = test_inds
 
 atom_dim = 75
 pair_dim = 14
+props_dim = 100
 
 optimizer = tf.train.AdamOptimizer(learning_rate= args.lr)
-graph_embedding_model = GraphEmbedding(atom_features= atom_dim,
+
+atom_features = Input(shape=(atom_dim,))
+pair_features = Input(shape=(pair_dim,))
+pair_split = Input(shape=(), dtype=tf.int32)
+atom_split = Input(shape=(), dtype=tf.int32)
+atom_to_pair = Input(shape=(2,), dtype=tf.int32)
+atoms_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair]
+
+protSeq = Input(shape=(PROTSEQLENGTH,))
+
+mol_embedding = GraphEmbedding(atom_features= atom_dim,
                                        pair_features= pair_dim,
                                        atom_hidden_list= args.atom_hidden,
                                        pair_hidden_list= args.pair_hidden,
                                        graph_feat= args.atom_hidden[-1],
-                                       num_mols= args.batchsize)
-protSeq_embedding_model = ProtSeqEmbedding(num_filters_list= args.num_filters,
+                                       num_mols= args.batchsize,
+                                       name= 'graph_embedding'
+                                       )(atoms_input)
+mol_property = Dense(props_dim)(mol_embedding)
+protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            filter_length_list= args.filters_length,
                                            prot_char_size= PROTCHARSIZE,
                                            max_seq_length= PROTSEQLENGTH,
-                                           )
-biInteraction_model = BiInteraction(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= None)
-
+                                           name = 'protein_embedding'
+                                           )(protSeq)
+affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
+                                    dropout= args.dropout,
+                                    activation= None,
+                                    name= 'biInteraction')(mol_embedding, protSeq_embedding)
+DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'drugPropertyModel')
+DTAModel= Model(inputs = [atoms_input, protSeq],
+                outputs= affinity,
+                name= "DTAmodel")
 
 def loop_dataset(indices, optimizer = None):
     mean_loss = 0
@@ -83,9 +104,7 @@ def loop_dataset(indices, optimizer = None):
         # print(it)
 
         with tf.GradientTape() as tape:
-            graph_embed = graph_embedding_model(batch_mol)
-            prot_embed = protSeq_embedding_model(batch_protSeq)
-            logit = biInteraction_model(graph_embed, prot_embed)
+            logit = DTAModel([batch_mol, batch_protSeq])
             # print(logit.numpy(), labels)
             loss_tensor = tf.losses.mean_squared_error(labels, logit)
             ci_tensor = cindex_score(labels, logit)
@@ -96,9 +115,9 @@ def loop_dataset(indices, optimizer = None):
         mean_loss = (it * mean_loss + loss_value) / (it + 1)
         mean_ci = (it * mean_ci + ci_value) / (it + 1)
         if optimizer:
-            vars = graph_embedding_model.variables + protSeq_embedding_model.variables + biInteraction_model.variables
-            grads = tape.gradient(loss_tensor, vars)
-            optimizer.apply_gradients(zip(grads, vars), global_step=tf.train.get_or_create_global_step())
+            variables = DTAModel.variables
+            grads = tape.gradient(loss_tensor, variables)
+            optimizer.apply_gradients(zip(grads, variables), global_step=tf.train.get_or_create_global_step())
 
         if it % args.print_every == 0:
             printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
@@ -118,9 +137,7 @@ for epoch in range(args.epoches):
     printf("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
     if val_loss < best_metric:
         best_metric = val_loss
-        graph_embedding_model.save_weights(os.path.join(chkpt_dir, "graph_embedding_model"), )
-        protSeq_embedding_model.save_weights(os.path.join(chkpt_dir, "protSeq_embedding_model"))
-        biInteraction_model.save_weights(os.path.join(chkpt_dir, "biInteraction_model"))
+        DTAModel.save_weights(os.path.join(chkpt_dir, "DTA"), )
         wait = 0
     else:
         wait += 1
@@ -128,9 +145,7 @@ for epoch in range(args.epoches):
     if wait > args.patience:
         break
 
-graph_embedding_model.load_weights(os.path.join(chkpt_dir, "graph_embedding_model"))
-protSeq_embedding_model.load_weights(os.path.join(chkpt_dir, "protSeq_embedding_model"))
-biInteraction_model.load_weights(os.path.join(chkpt_dir, "biInteraction_model"))
+DTAModel.load_weights(os.path.join(chkpt_dir, "DTA"))
 
 printf("start testing...")
 test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
