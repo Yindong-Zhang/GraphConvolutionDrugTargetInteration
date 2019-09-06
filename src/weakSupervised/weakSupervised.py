@@ -24,45 +24,58 @@ args = parser.parse_args()
 pprint(vars(args))
 configStr = make_config_str(args)
 # configStr = "test"
-chkpt_dir = os.path.join(PROJPATH, "checkpoint/", configStr)
+chkpt_dir = os.path.join(PROJPATH, "checkpoint/", "weakSuperviesd_%s" %(configStr, ))
 atom_dim = 75
 pair_dim = 14
 props_dim = 100
 
-model = DrugProperty(atom_features= atom_dim,
-                     pair_features= pair_dim,
-                     atom_hidden_list= args.atom_hidden,
-                     pair_hidden_list= args.pair_hidden,
-                     graph_feat= args.graph_features,
-                     num_mols= args.batchsize,
-                     props_dim= props_dim)
+drugPropertyModel = DrugProperty(atom_features= atom_dim,
+                                 pair_features= pair_dim,
+                                 atom_hidden_list= args.atom_hidden,
+                                 pair_hidden_list= args.pair_hidden,
+                                 graph_feat= args.graph_features,
+                                 num_mols= args.batchsize,
+                                 props_dim= props_dim)
+
+def pretrain(drugPropertyModel,
+             dataset,
+             configStr,
+             epoches= 10000,
+             batchsize = 128,
+             lr = 0.001,
+             patience= 8,
+             print_every= 32,
+             ):
+    train, val, test = load_fn(dataset= dataset, batchsize= batchsize)
+
+    chkpt_dir = os.path.join(PROJPATH, "checkpoint/", "weakSuperviesd_%s" % (configStr,))
+
+    optimizer = tf.train.AdamOptimizer(learning_rate= lr)
+
+    min_loss = float('inf')
+    wait = 0
+    for epoch in range(epoches):
+        print("Epoch %d..." %(epoch, ))
+        train_loss = loop_dataset(DrugProperty, train, optimizer, print_every= print_every)
+        print("Train epoch %d: loss %.4f." %(epoch, train_loss))
+
+        val_loss = loop_dataset(DrugProperty, val, print_every= print_every)
+        print("Val epoch %d: loss %.4f." %(epoch, val_loss))
+
+        if val_loss < min_loss:
+            min_loss = val_loss
+            wait = 0
+
+            drugPropertyModel.save_weights(os.path.join(chkpt_dir, 'drug_property_model'))
+        else:
+            wait = wait + 1
+            if wait == patience:
+                print("early stop at epoch %d" %(epoch, ))
+                break
+
+    drugPropertyModel.load_weights(os.path.join(chkpt_dir, 'drug_property_model'))
+    test_loss = loop_dataset(DrugProperty, test, print_every= print_every)
+    print("Test loss: %.4f" %(test_loss, ))
 
 
-train, val, test = load_fn(dataset= args.dataset, batchsize= args.batchsize)
-
-optimizer = tf.train.AdamOptimizer(learning_rate= args.lr)
-
-min_loss = float('inf')
-wait = 0
-for epoch in range(args.epoches):
-    print("Epoch %d..." %(epoch, ))
-    train_loss = loop_dataset(train, optimizer, print_every= args.print_every)
-    print("Train epoch %d: loss %.4f." %(epoch, train_loss))
-
-    val_loss = loop_dataset(val, print_every= args.print_every)
-    print("Val epoch %d: loss %.4f." %(epoch, val_loss))
-
-    if val_loss < min_loss:
-        min_loss = val_loss
-        wait = 0
-
-        model.save_weights(os.path.join(chkpt_dir, 'drug_property_model'))
-    else:
-        wait = wait + 1
-        if wait == args.patience:
-            print("early stop at epoch %d" %(epoch, ))
-            break
-
-model.load_weights(os.path.join(chkpt_dir, 'drug_property_model'))
-test_loss = loop_dataset(test, print_every= args.print_every)
-print("Test loss: %.4f" %(test_loss, ))
+pretrain(drugPropertyModel, args.dataset, args.epoches, args.batchsize, args.lr, args.patience, args.print_every, configStr)

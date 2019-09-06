@@ -87,7 +87,8 @@ class BiInteraction(Model):
         self.out_layer = Dense(1)
 
 
-    def call(self, graph_embed, protSeq_embed):
+    def call(self, inputs):
+        graph_embed, protSeq_embed= inputs
         concat_embed = Concatenate(axis= -1)([graph_embed, protSeq_embed])
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)

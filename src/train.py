@@ -1,6 +1,8 @@
 import argparse
 import os, sys
 import numpy as np
+from src.weakSupervised.weakSupervised import pretrain
+from src.weakSupervised.data_utils import load_fn
 from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
 from src.data_utils import DataSet, PROTCHARSIZE
 from src.utils import make_config_str, PROJPATH
@@ -79,7 +81,7 @@ mol_embedding = GraphEmbedding(atom_features= atom_dim,
                                        num_mols= args.batchsize,
                                        name= 'graph_embedding'
                                        )(atoms_input)
-mol_property = Dense(props_dim)(mol_embedding)
+mol_property = Dense(props_dim, name= 'mol_property')(mol_embedding)
 protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            filter_length_list= args.filters_length,
                                            prot_char_size= PROTCHARSIZE,
@@ -89,12 +91,23 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
 affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
                                     dropout= args.dropout,
                                     activation= None,
-                                    name= 'biInteraction')(mol_embedding, protSeq_embedding)
+                                    name= 'biInteraction')([mol_embedding, protSeq_embedding])
 DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,
                 name= "DTAmodel")
 
+# pretrain...
+train, val, test = load_fn(dataset= args.dataset, batchsize= args.batchsize)
+
+pretrain(DrugPropertyModel,
+         dataset= "kiba_origin",
+         configStr= configStr,
+         epoches= 10000,
+         batchsize= 64,
+         lr = 0.001,
+         patience= 8,
+         )
 def loop_dataset(indices, optimizer = None):
     mean_loss = 0
     mean_ci = 0
