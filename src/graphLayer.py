@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense
+from tensorflow.python.keras.layers import Dense, Dropout
 from tensorflow.python.keras import initializers, activations
 
 class WeaveLayer(tf.keras.layers.Layer):
@@ -156,7 +156,7 @@ class WeaveGather(tf.keras.layers.Layer):
 
     def __init__(self,
                  num_mols,
-                 n_input=128,
+                 atom_dim=128,
                  gaussian_expand= True,
                  init='glorot_uniform',
                  activation='tanh',
@@ -168,7 +168,7 @@ class WeaveGather(tf.keras.layers.Layer):
         ----------
         num_mols: int
           number of molecules in a batch
-        n_input: int, optional
+        atom_dim: int, optional
           number of features for each input molecule
         gaussian_expand: boolean. optional
           Whether to expand each dimension of atomic features by gaussian histogram
@@ -178,7 +178,7 @@ class WeaveGather(tf.keras.layers.Layer):
           Activation function applied
         """
         super(WeaveGather, self).__init__(**kwargs)
-        self.n_input = n_input
+        self.n_input = atom_dim
         self.batch_size = num_mols
         self.gaussian_expand = gaussian_expand
         self.init = initializers.get(init)  # Set weight initialization
@@ -227,13 +227,6 @@ class WeaveGather(tf.keras.layers.Layer):
     def compute_output_shape(self, input_shape):
         shape = tf.TensorShape([self.batch_size, self.n_input])
 
-class WeightedGather(tf.keras.layers.Layer):
-    def __init__(self, ):
-        pass
 
-
-    def call(self, inputs):
-
-        atom_features, atom_split, protSeq_features = inputs
 
 

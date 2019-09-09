@@ -4,6 +4,7 @@ import numpy as np
 from src.weakSupervised.weakSupervised import pretrain
 from src.weakSupervised.data_utils import load_fn
 from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
+from src.graphLayer import WeaveGather
 from src.data_utils import DataSet, PROTCHARSIZE
 from src.utils import make_config_str, PROJPATH
 from src.featurizer import WeaveFeaturizer
@@ -15,10 +16,9 @@ from src.emetrics import cindex_score
 from src.utils import log
 from pprint import pprint
 from functools import partial
-tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
-parser.add_argument("--no_pretrain", action= 'store_false', dest= 'pretrain', default= True, help= "whether to use pretrain graph convolution layer")
+parser.add_argument("--no_pretrain", action= 'store_false', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
@@ -80,14 +80,15 @@ atoms_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pai
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
 
-mol_embedding = GraphEmbedding(atom_features= atom_dim,
-                                       pair_features= pair_dim,
-                                       atom_hidden_list= args.atom_hidden,
-                                       pair_hidden_list= args.pair_hidden,
-                                       graph_feat= args.atom_hidden[-1],
-                                       num_mols= args.batchsize,
-                                       name= 'graph_embedding'
-                                       )(atoms_input)
+atom_embedding = GraphEmbedding(atom_features= atom_dim,
+                                pair_features= pair_dim,
+                                atom_hidden_list= args.atom_hidden,
+                                pair_hidden_list= args.pair_hidden,
+                                graph_feat= args.graph_features,
+                                num_mols= args.batchsize,
+                                name= 'graph_embedding'
+                                )(atoms_input)
+mol_embedding = WeaveGather(args.batchsize, atom_dim= args.graph_features, name='atom_gather')([atom_embedding, atom_split])
 mol_property = Dense(props_dim, name= 'mol_property')(mol_embedding)
 protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            filter_length_list= args.filters_length,
@@ -98,13 +99,14 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
 affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
                                     dropout= args.dropout,
                                     activation= None,
-                                    name= 'biInteraction')([mol_embedding, protSeq_embedding])
+                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
 DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'drugPropertyModel')
 DrugPropertyModel.summary() #to test:
 DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,
                 name= "DTAmodel")
 
+tf.enable_eager_execution()
 print("pretrain...")
 if args.pretrain:
     pretrain(DrugPropertyModel,

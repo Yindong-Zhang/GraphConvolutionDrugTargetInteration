@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.keras import Model
-from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate, Dropout
+from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate, Dropout, Layer
+from tensorflow.python.keras import initializers
 from src.graphLayer import WeaveLayer, WeaveGather
 
 """ model subclass is more suitable for tensorflow 2.0
@@ -27,7 +28,6 @@ class GraphEmbedding(Model):
 
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
-        self.weavegather = WeaveGather(self.num_mols, self.graph_features, gaussian_expand=True)
 
     def call(self, inputs):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
@@ -36,11 +36,12 @@ class GraphEmbedding(Model):
             atom_hidden, pair_hidden = self.weaveLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
         atom_hidden = self.dense(atom_hidden)
         atom_hidden = self.batchnorm(atom_hidden)
-        graph_feat = self.weavegather([atom_hidden, atom_split])
-        return graph_feat
+        return atom_hidden
 
     def compute_output_shape(self, input_shape):
-        return tf.TensorShape([self.num_mols, self.graph_features])
+        atom_shape, _, _, _, _ = input_shape
+        num_atoms, atom_dim = atom_shape
+        return tf.TensorShape([num_atoms, self.graph_features])
 
 class ProtSeqEmbedding(Model):
     def __init__(self, num_filters_list, filter_length_list, prot_char_size, max_seq_length, **kwargs):
@@ -59,23 +60,21 @@ class ProtSeqEmbedding(Model):
                                                      activation='relu',
                                                      padding='same',
                                                      strides=1))
-        self.aggregate_layer = GlobalMaxPooling1D()
 
     def call(self, inputs):
         seq_embed = self.embed(inputs)
         for layer in self.conv_layer_list:
             seq_embed = layer(seq_embed)
 
-        return self.aggregate_layer(seq_embed)
+        return seq_embed
 
     def compute_output_shape(self, input_shape):
-        batchsize= input_shape[0]
+        batchsize, protSeqLen = input_shape
         embed_dim = self.num_filters_list[-1]
 
-        return tf.TensorShape([batchsize, embed_dim])
+        return tf.TensorShape([batchsize, protSeqLen, embed_dim])
 
-
-class BiInteraction(Model):
+class BiInteraction(Layer):
     def __init__(self, hidden_list, dropout, activation = "relu", **kwargs):
         super(BiInteraction, self).__init__(**kwargs)
         self.num_dense_layers = len(hidden_list)
@@ -86,18 +85,41 @@ class BiInteraction(Model):
             self.dense_layer_list.append(Dense(hidden_list[i], activation= activation))
         self.out_layer = Dense(1)
 
+    def build(self, input_shape):
+        atom_hidden_shape, prot_hidden_shape, atom_splits_shape = input_shape
+        atom_dim = atom_hidden_shape[-1]
+        prot_dim = prot_hidden_shape[-1]
+        self.W= self.add_weight('attention_weight', shape= (atom_dim, prot_dim), initializer= initializers.get(self.activation))
 
     def call(self, inputs):
-        graph_embed, protSeq_embed= inputs
-        concat_embed = Concatenate(axis= -1)([graph_embed, protSeq_embed])
+        atom_embed, protSeq_embed, atom_splits = inputs
+        # TODO:
+        protSeq_embed_T = tf.transpose(protSeq_embed, (0, 2, 1))
+        protSeq_embed_gather = tf.gather(protSeq_embed_T, atom_splits, axis= 0)
+        W = tf.einsum('ij, jk, ikl->il', atom_embed, self.W, protSeq_embed_gather)
+
+        Wc = tf.exp(tf.reduce_sum(W, axis= -1 ,keepdims= True))
+        Sc = tf.gather(tf.segment_sum(Wc, atom_splits), atom_splits, axis= 0)
+        aa = Wc / Sc
+        atom_embed = tf.segment_sum(aa * atom_embed, atom_splits)
+
+        Wp = tf.segment_sum(W, atom_splits)
+        print(W.shape, Wp.shape)
+        WpExp = tf.exp(Wp)
+        ap = WpExp / tf.reduce_sum(WpExp, axis= -1, keepdims= True)
+        print(ap.shape)
+        prot_embed = tf.einsum('ij, ijk->ik', ap, protSeq_embed)
+
+        concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
             concat_embed = Dropout(self.dropout)(concat_embed)
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
-        (batchsize, graph_dim), (batchsize, prot_dim) = input_shape
+        (num_atoms, atom_dim), (batchsize, prot_dim), (num_atoms, ) = input_shape
         return tf.TensorShape((batchsize, 1))
+
 
 if __name__ == "__main__":
     tf.enable_eager_execution()
