@@ -93,21 +93,20 @@ class BiInteraction(Layer):
 
     def call(self, inputs):
         atom_embed, protSeq_embed, atom_splits = inputs
-        # TODO:
+
         protSeq_embed_T = tf.transpose(protSeq_embed, (0, 2, 1))
         protSeq_embed_gather = tf.gather(protSeq_embed_T, atom_splits, axis= 0)
         W = tf.einsum('ij, jk, ikl->il', atom_embed, self.W, protSeq_embed_gather)
 
-        Wc = tf.exp(tf.reduce_sum(W, axis= -1 ,keepdims= True))
+        Wc = tf.exp(tf.reduce_max(W, axis= -1 ,keepdims= True))
         Sc = tf.gather(tf.segment_sum(Wc, atom_splits), atom_splits, axis= 0)
         aa = Wc / Sc
+
         atom_embed = tf.segment_sum(aa * atom_embed, atom_splits)
 
-        Wp = tf.segment_sum(W, atom_splits)
-        print(W.shape, Wp.shape)
-        WpExp = tf.exp(Wp)
-        ap = WpExp / tf.reduce_sum(WpExp, axis= -1, keepdims= True)
-        print(ap.shape)
+        Wp = tf.segment_max(W, atom_splits)
+        ap = tf.nn.softmax(Wp, axis= -1)
+
         prot_embed = tf.einsum('ij, ijk->ik', ap, protSeq_embed)
 
         concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
