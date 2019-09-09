@@ -65,7 +65,7 @@ for idx, result in enumerate(results):
     props_intermediate.append(props)
 
 prop_df = pd.DataFrame(properties_all)
-prop_df.to_csv(os.path.join(dataDir, "kiba_props.csv"), index=False, header=True)
+prop_df.to_csv(os.path.join(dataDir, "kiba_origin_props.csv"), index=False, header=True)
 
 end_time = time.time()
 print("Time taken to process molecules: ", end_time - start_time)

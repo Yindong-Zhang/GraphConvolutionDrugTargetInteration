@@ -18,7 +18,7 @@ from functools import partial
 tf.enable_eager_execution()
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
-parser.add_argument("--pretrain", type= bool, default= False, help= "whether to use pretrain graph convolution layer")
+parser.add_argument("--no_pretrain", action= 'store_false', dest= 'pretrain', default= True, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
@@ -29,6 +29,7 @@ parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32]
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 16], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
 parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
+parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 32, help= "print intervals during loop dataset.")
 
@@ -36,20 +37,26 @@ args = parser.parse_args()
 
 
 pprint(vars(args))
-configStr = make_config_str(args)
+prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s/" \
+         % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
+            args.graph_features, '_'.join([str(d) for d in args.num_filters]),
+            '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
 # configStr = "test"
-chkpt_dir = os.path.join(PROJPATH, "checkpoint/", configStr)
+chkpt_dir = os.path.join(PROJPATH, "checkpoint/", prefix)
+log_dir = os.path.join(PROJPATH, "log/", prefix)
 if not os.path.exists(chkpt_dir):
     os.makedirs(chkpt_dir)
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
 
-log_f = open(os.path.join(PROJPATH, "log/%s.log" %(configStr, )), 'w')
+log_f = open(os.path.join(log_dir, 'log'), 'w')
 printf = partial(log, f = log_f)
 
 filepath = os.path.join(PROJPATH, "data/%s/" %(args.dataset, ))
 weave_featurizer = WeaveFeaturizer()
 
 PROTSEQLENGTH= 1000
-dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
+dataset = DataSet(fpath=filepath,
                   seqlen= PROTSEQLENGTH,
                   featurizer=weave_featurizer,
                   is_log=False)
@@ -93,21 +100,23 @@ affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
                                     activation= None,
                                     name= 'biInteraction')([mol_embedding, protSeq_embedding])
 DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'drugPropertyModel')
+DrugPropertyModel.summary() #to test:
 DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,
                 name= "DTAmodel")
 
-# pretrain...
-train, val, test = load_fn(dataset= args.dataset, batchsize= args.batchsize)
+print("pretrain...")
+if args.pretrain:
+    pretrain(DrugPropertyModel,
+             dataset= "kiba_origin",
+             dir_prefix= prefix,
+             epoches= args.pretrain_epoches,
+             batchsize= 64,
+             lr = 1E-4,
+             patience= 8,
+             )
+    print("pretrain conclude.")
 
-pretrain(DrugPropertyModel,
-         dataset= "kiba_origin",
-         configStr= configStr,
-         epoches= 10000,
-         batchsize= 64,
-         lr = 0.001,
-         patience= 8,
-         )
 def loop_dataset(indices, optimizer = None):
     mean_loss = 0
     mean_ci = 0

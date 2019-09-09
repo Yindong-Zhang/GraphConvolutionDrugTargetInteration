@@ -11,7 +11,7 @@ class DrugProperty(Model):
                  graph_feat,
                  num_mols,
                  props_dim,
-                 **kwargs,
+                 **kwargs
                  ):
         super(DrugProperty, self).__init__(self, **kwargs)
         self.graph_embedding_model = GraphEmbedding(atom_features= atom_features,
