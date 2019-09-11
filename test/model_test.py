@@ -11,8 +11,8 @@ tf.enable_eager_execution()
 def graph_embedding_test():
     filepath = '../data/kiba/'
     weave_featurizer = WeaveFeaturizer()
-    dataset = DataSet(fpath=filepath,  ### BUNU ARGS DA GUNCELLE
-                      setting_no=1,  ##BUNU ARGS A EKLE
+    dataset = DataSet(fpath=filepath,
+                      setting_no=1,  ##
                       seqlen=1000,
                       featurizer=weave_featurizer,
                       is_log= False)

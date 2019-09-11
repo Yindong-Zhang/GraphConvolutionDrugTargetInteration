@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow.python.keras import Model
 from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate, Dropout, Layer
 from tensorflow.python.keras import initializers
-from src.graphLayer import WeaveLayer, WeaveGather
+from src.graphLayer import WeaveLayer, WeaveGather, MolecularConvolutionLayer
 
 """ model subclass is more suitable for tensorflow 2.0
 """
@@ -19,21 +19,21 @@ class GraphEmbedding(Model):
         self.atom_features = atom_features
         self.pair_features = pair_features
 
-        self.weaveLayer_list = []
+        self.GCLayer_list = []
 
-        self.weaveLayer_list.append(WeaveLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0]))
+        self.GCLayer_list.append(MolecularConvolutionLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0]))
         for i in range(1, self.num_weaveLayers):
-            self.weaveLayer_list.append(
-                WeaveLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i]))
+            self.GCLayer_list.append(
+                MolecularConvolutionLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i]))
 
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
 
     def call(self, inputs):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
-        atom_hidden, pair_hidden = self.weaveLayer_list[0]([atom_features, pair_features, pair_split, atom_to_pair])
+        atom_hidden, pair_hidden = self.GCLayer_list[0]([atom_features, pair_features, pair_split, atom_to_pair])
         for i in range(1, self.num_weaveLayers):
-            atom_hidden, pair_hidden = self.weaveLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
+            atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
         atom_hidden = self.dense(atom_hidden)
         atom_hidden = self.batchnorm(atom_hidden)
         return atom_hidden

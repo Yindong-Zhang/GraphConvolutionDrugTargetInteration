@@ -114,6 +114,6 @@ def biInteraction_test():
             optimizer.apply_gradients(zip(grads, model.variables))
 
 if __name__ == "__main__":
-    protSeqEmbedding_test()
-    # graphEmbedding_test()
+    # protSeqEmbedding_test()
+    graphEmbedding_test()
     # biInteraction_test()
