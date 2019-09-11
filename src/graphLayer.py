@@ -42,18 +42,17 @@ class WeaveLayer(tf.keras.layers.Layer):
         self.init = init  # Set weight initialization
         self.activation = activation  # Get activations
         self.update_pair = update_pair  # last weave layer does not need to update
-        self.n_hidden_AA = n_hidden_AA
-        self.n_hidden_PA = n_hidden_PA
-        self.n_hidden_AP = n_hidden_AP
-        self.n_hidden_PP = n_hidden_PP
+        self.dim_aa = n_hidden_AA
+        self.dim_pa = n_hidden_PA
+        self.dim_ap = n_hidden_AP
+        self.dim_pa = n_hidden_PP
         self.n_hidden_A = n_hidden_AA + n_hidden_PA
         self.n_hidden_P = n_hidden_AP + n_hidden_PP
 
         self.n_atom_input_feat = n_atom_input_feat
         self.n_pair_input_feat = n_pair_input_feat
-        self.n_atom_output_feat = n_atom_output_feat
-        self.n_pair_output_feat = n_pair_output_feat
-        # self.W_AP, self.b_AP, self.W_PP, self.b_PP, self.W_P, self.b_P = None, None, None, None, None, None
+        self.dim_ao = n_atom_output_feat
+        self.dim_po = n_pair_output_feat
 
     def build(self, input_shape):
         """
@@ -61,43 +60,13 @@ class WeaveLayer(tf.keras.layers.Layer):
         :param input_shape:
         :return:
         """
-        self.linear_aa = Dense(self.n_hidden_A, activation=self.activation, use_bias=True, kernel_initializer=self.init)
-        # self.W_AA = self.add_weight("W_AA", shape= [self.n_atom_input_feat, self.n_hidden_AA], initializer= self.init)
-        # self.W_AA = init([self.n_atom_input_feat, self.n_hidden_AA])
-        # self.b_AA = model_ops.zeros(shape=[
-        #     self.n_hidden_AA,
-        # ])
-        self.linear_pa = Dense(self.n_hidden_PA, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        # self.W_PA = init([self.n_pair_input_feat, self.n_hidden_PA])
-        # self.b_PA = model_ops.zeros(shape=[
-        #   self.n_hidden_PA,
-        # ])
-
-        self.linear_ao = Dense(self.n_atom_output_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        # self.W_A = init([self.n_hidden_A, self.n_atom_output_feat])
-        # self.b_A = model_ops.zeros(shape=[
-        #   self.n_atom_output_feat,
-        # ])
-
-        self.linear_ap = Dense(self.n_hidden_AP, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        # self.W_AP = init([self.n_atom_input_feat * 2, self.n_hidden_AP])
-        # self.b_AP = model_ops.zeros(shape=[
-        #   self.n_hidden_AP,
-        # ])
-
-        self.linear_pp = Dense(self.n_hidden_PP, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        # self.W_PP = init([self.n_pair_input_feat, self.n_hidden_PP])
-        # self.b_PP = model_ops.zeros(shape=[
-        #   self.n_hidden_PP,
-        # ])
-
-        self.linear_po = Dense(self.n_pair_output_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-
-        # self.W_P = init([self.n_hidden_P, self.n_pair_output_feat])
-        # self.b_P = model_ops.zeros(shape=[
-        #   self.n_pair_output_feat,
-        # ])
         super(WeaveLayer, self).build(input_shape)
+        self.linear_aa = Dense(self.n_hidden_A, activation=self.activation, use_bias=True, kernel_initializer=self.init)
+        self.linear_pa = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.linear_ao = Dense(self.dim_ao, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.linear_ap = Dense(self.dim_ap, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.linear_pp = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.linear_po = Dense(self.dim_po, activation= self.activation, use_bias= True, kernel_initializer= self.init)
 
     def call(self, inputs):
         """Creates weave tensors.
@@ -147,8 +116,8 @@ class WeaveLayer(tf.keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         atoms_shape, pairs_shape, _, _ = input_shape
-        atoms_shape[-1] = self.n_atom_output_feat
-        pairs_shape[-1] = self.n_pair_output_feat
+        atoms_shape[-1] = self.dim_ao
+        pairs_shape[-1] = self.dim_po
         return [tf.TensorShape(atoms_shape), tf.TensorShape(pairs_shape)]
 
 

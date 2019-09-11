@@ -18,7 +18,7 @@ from pprint import pprint
 from functools import partial
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
-parser.add_argument("--no_pretrain", action= 'store_false', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
+parser.add_argument("--no_pretrain", action= 'store_false', dest= 'pretrain', default= True, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")

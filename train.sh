@@ -5,5 +5,5 @@ python -m src.train --dataset kiba \
 --biInteraction_hidden 1024 1024 512 --dropout 0.1 \
 --pretrain_epoches 10000 \
 --batchsize 32 --epoches 10000 --patience 4 --print_every 16 \
-#--no_pretrain
+--no_pretrain
 
