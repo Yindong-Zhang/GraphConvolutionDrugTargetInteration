@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LeakyReLU
 from tensorflow.python.keras import initializers, activations
 
 class MolecularConvolutionLayer(tf.keras.layers.Layer):
@@ -10,7 +10,7 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
                  n_pair_output_feat=50,
                  n_atom_agg_feat= 32,
                  init='glorot_uniform',
-                 activation='relu',
+                 leaky_alpha = 0.1,
                  **kwargs):
         """
         Parameters
@@ -35,19 +35,19 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         """
         super(MolecularConvolutionLayer, self).__init__(**kwargs)
         self.init = init  # Set weight initialization
-        self.activation = activation  # Get activations
         self.atom_input_dim = n_atom_input_feat
         self.pair_input_dim = n_pair_input_feat
         self.atom_output_dim = n_atom_output_feat
         self.pair_output_dim = n_pair_output_feat
         self.atom_agg_dim = n_atom_agg_feat
         self.linear_aa = Dense(n_atom_output_feat, activation= None, use_bias=True, kernel_initializer=self.init)
-        self.linear_pa = Dense(n_atom_agg_feat, activation= None, use_bias= True, kernel_initializer= self.init)
-        self.linear_ao = Dense(n_atom_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_pap = Dense(n_atom_agg_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_pa = Dense(n_atom_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_ap = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_pp = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.bn_pair = BatchNormalization()
         self.bn_atoms = BatchNormalization()
+        self.activation = LeakyReLU(leaky_alpha)
 
     def call(self, inputs, training= None):
         """Creates weave tensors.
@@ -60,23 +60,23 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         pair_j = atom_to_pair[:, 1]
 
         atom_j = tf.gather(atom_features, pair_j, axis= 0)
-        A_paj = self.linear_pa(tf.concat([pair_features, atom_j], axis= -1))
+        A_paj = self.activation(self.linear_pap(tf.concat([pair_features, atom_j], axis= -1)))
         A_paj_sum = tf.segment_sum(A_paj, pair_i)
-        A_pa = self.linear_ao(tf.concat([atom_features, A_paj_sum], axis= -1))
-        A_aa = self.linear_aa(atom_features)
+        A_pa = self.activation(self.linear_pa(tf.concat([atom_features, A_paj_sum], axis= -1)))
+        A_aa = self.activation(self.linear_aa(atom_features))
         A_s = A_pa + A_aa
         if training:
             A_s = self.bn_atoms(A_s)
-        atom_hidden = tf.nn.relu(A_s)
+        atom_hidden = self.activation(A_s)
 
         atom_i = tf.gather(atom_features, pair_i, axis= 0)
         atom_ipj = atom_i + atom_j
-        P_apa = self.linear_ap(tf.concat([pair_features, atom_ipj], axis= -1))
-        P_pp = self.linear_pp(pair_features)
+        P_apa = self.activation(self.linear_ap(tf.concat([pair_features, atom_ipj], axis= -1)))
+        P_pp = self.activation(self.linear_pp(pair_features))
         P_s = P_apa + P_pp
         if training:
             P_s = self.bn_pair(P_s)
-        pair_hidden = tf.nn.relu(P_s)
+        pair_hidden = self.activation(P_s)
 
         return [atom_hidden, pair_hidden]
 

@@ -94,7 +94,7 @@ class BiInteraction(Layer):
         prot_dim = prot_hidden_shape[-1]
         self.W= self.add_weight('attention_weight', shape= (atom_dim, prot_dim), initializer= initializers.get(self.activation))
 
-    def call(self, inputs):
+    def call(self, inputs, training= None):
         atom_embed, protSeq_embed, atom_splits = inputs
 
         protSeq_embed_T = tf.transpose(protSeq_embed, (0, 2, 1))
@@ -115,7 +115,8 @@ class BiInteraction(Layer):
         concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
-            concat_embed = Dropout(self.dropout)(concat_embed)
+            if training:
+                concat_embed = Dropout(self.dropout)(concat_embed)
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
