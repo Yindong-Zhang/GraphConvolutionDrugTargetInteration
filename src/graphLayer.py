@@ -1,5 +1,5 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LeakyReLU
+from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.python.keras import initializers, activations
 
 class MolecularConvolutionLayer(tf.keras.layers.Layer):
@@ -35,6 +35,7 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         """
         super(MolecularConvolutionLayer, self).__init__(**kwargs)
         self.init = init  # Set weight initialization
+        self.activation = activation  # Get activations
         self.atom_input_dim = n_atom_input_feat
         self.pair_input_dim = n_pair_input_feat
         self.atom_output_dim = n_atom_output_feat
@@ -47,7 +48,6 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         self.linear_pp = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.bn_pair = BatchNormalization()
         self.bn_atoms = BatchNormalization()
-        self.LeakyRelu = LeakyReLU(leaky_alpha)
 
     def call(self, inputs, training= None):
         """Creates weave tensors.
