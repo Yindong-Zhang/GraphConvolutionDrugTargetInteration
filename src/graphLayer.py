@@ -1,18 +1,16 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization
+from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LeakyReLU
 from tensorflow.python.keras import initializers, activations
 
 class MolecularConvolutionLayer(tf.keras.layers.Layer):
-    # TODO:
     def __init__(self,
                  n_atom_input_feat=75,
                  n_pair_input_feat=14,
                  n_atom_output_feat=50,
                  n_pair_output_feat=50,
                  n_atom_agg_feat= 32,
-                 update_pair=True,
                  init='glorot_uniform',
-                 activation='relu',
+                 leaky_alpha= 0.1,
                  **kwargs):
         """
         Parameters
@@ -37,19 +35,19 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         """
         super(MolecularConvolutionLayer, self).__init__(**kwargs)
         self.init = init  # Set weight initialization
-        self.activation = activation  # Get activations
-        self.update_pair = update_pair  # last weave layer does not need to update
-        self.dim_a = n_atom_input_feat
-        self.dim_p = n_pair_input_feat
-        self.dim_ao = n_atom_output_feat
-        self.dim_po = n_pair_output_feat
-        self.linear_aa = Dense(n_atom_output_feat, activation=self.activation, use_bias=True, kernel_initializer=self.init)
-        self.linear_pa = Dense(n_atom_agg_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_ao = Dense(n_atom_output_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_ap = Dense(n_pair_output_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_pp = Dense(n_pair_output_feat, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.atom_input_dim = n_atom_input_feat
+        self.pair_input_dim = n_pair_input_feat
+        self.atom_output_dim = n_atom_output_feat
+        self.pair_output_dim = n_pair_output_feat
+        self.atom_agg_dim = n_atom_agg_feat
+        self.linear_aa = Dense(n_atom_output_feat, activation= None, use_bias=True, kernel_initializer=self.init)
+        self.linear_pa = Dense(n_atom_agg_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_ao = Dense(n_atom_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_ap = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_pp = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.bn_pair = BatchNormalization()
         self.bn_atoms = BatchNormalization()
+        self.LeakyRelu = LeakyReLU(leaky_alpha)
 
     def call(self, inputs, training= None):
         """Creates weave tensors.
@@ -84,8 +82,8 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         atoms_shape, pairs_shape, _, _ = input_shape
-        atoms_shape[-1] = self.dim_ao
-        pairs_shape[-1] = self.dim_po
+        atoms_shape[-1] = self.atom_output_dim
+        pairs_shape[-1] = self.pair_output_dim
         return [tf.TensorShape(atoms_shape), tf.TensorShape(pairs_shape)]
 
 
@@ -172,30 +170,16 @@ class WeaveLayer(tf.keras.layers.Layer):
         # A = activation(A)
 
         if self.update_pair:
-            # AP_ij = tf.matmul(
-            #   tf.reshape(
-            #     tf.gather(atom_features, atom_to_pair),
-            #     [-1, 2 * self.n_atom_input_feat]), self.W_AP) + self.b_AP
-            # AP_ij = activation(AP_ij)
             AP_ij = self.linear_ap(tf.reshape(
                 tf.gather(atom_features, atom_to_pair),
                 [-1, 2 * self.n_atom_input_feat]))
 
             AP_ji = self.linear_ap(tf.reshape(tf.gather(atom_features, tf.reverse(atom_to_pair, [1])),
                                               [-1, 2 * self.n_atom_input_feat]))
-            # AP_ji = tf.matmul(
-            #   tf.reshape(
-            #     tf.gather(atom_features, tf.reverse(atom_to_pair, [1])),
-            #     [-1, 2 * self.n_atom_input_feat]), self.W_AP) + self.b_AP
-            # AP_ji = activation(AP_ji)
 
             PP = self.linear_pp(pair_features)
-            # PP = tf.matmul(pair_features, self.W_PP) + self.b_PP
-            # PP = activation(PP)
 
             P = self.linear_po(tf.concat([AP_ij + AP_ji, PP], -1))
-            # P = tf.matmul(tf.concat([AP_ij + AP_ji, PP], 1), self.W_P) + self.b_P
-            # P = activation(P)
         else:
             P = pair_features
 

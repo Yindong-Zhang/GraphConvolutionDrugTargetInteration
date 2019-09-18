@@ -14,17 +14,20 @@ class GraphEmbedding(Model):
         self.graph_features = graph_feat
         self.num_mols = num_mols
         assert len(atom_hidden_list) == len(pair_hidden_list), "length of atom hidden list should equal to length of pair hidden list."
-        self.num_weaveLayers = len(atom_hidden_list)
+        self.num_GCNLayers = len(atom_hidden_list)
 
         self.atom_features = atom_features
         self.pair_features = pair_features
 
         self.GCLayer_list = []
 
-        self.GCLayer_list.append(MolecularConvolutionLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0]))
-        for i in range(1, self.num_weaveLayers):
+        # self.GCLayer_list.append(MolecularConvolutionLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], self.atom_hidden_list[0]))
+        self.GCLayer_list.append(WeaveLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], activation= 'tanh'))
+        for i in range(1, self.num_GCNLayers):
+            # self.GCLayer_list.append(
+            #     MolecularConvolutionLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                MolecularConvolutionLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i]))
+                WeaveLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
@@ -32,7 +35,7 @@ class GraphEmbedding(Model):
     def call(self, inputs):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
         atom_hidden, pair_hidden = self.GCLayer_list[0]([atom_features, pair_features, pair_split, atom_to_pair])
-        for i in range(1, self.num_weaveLayers):
+        for i in range(1, self.num_GCNLayers):
             atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
         atom_hidden = self.dense(atom_hidden)
         atom_hidden = self.batchnorm(atom_hidden)
