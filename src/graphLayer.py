@@ -10,7 +10,7 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
                  n_pair_output_feat=50,
                  n_atom_agg_feat= 32,
                  init='glorot_uniform',
-                 leaky_alpha= 0.1,
+                 activation='relu',
                  **kwargs):
         """
         Parameters
