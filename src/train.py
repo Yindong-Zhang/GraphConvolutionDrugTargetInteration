@@ -37,7 +37,7 @@ args = parser.parse_args()
 
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-tanh/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-mc/" \
          % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)

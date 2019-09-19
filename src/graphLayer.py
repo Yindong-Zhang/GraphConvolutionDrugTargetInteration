@@ -43,8 +43,10 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         self.linear_aa = Dense(n_atom_output_feat, activation= None, use_bias=True, kernel_initializer=self.init)
         self.linear_pap = Dense(n_atom_agg_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_pa = Dense(n_atom_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_ao = Dense(n_atom_output_feat, use_bias= True, kernel_initializer= self.init)
         self.linear_ap = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_pp = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
+        self.linear_po = Dense(n_pair_output_feat, use_bias= True, kernel_initializer= self.init)
         self.bn_pair = BatchNormalization()
         self.bn_atoms = BatchNormalization()
         self.activation = LeakyReLU(leaky_alpha)
@@ -64,18 +66,15 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         A_paj_sum = tf.segment_sum(A_paj, pair_i)
         A_pa = self.activation(self.linear_pa(tf.concat([atom_features, A_paj_sum], axis= -1)))
         A_aa = self.activation(self.linear_aa(atom_features))
-        A_s = A_pa + A_aa
-        if training:
-            A_s = self.bn_atoms(A_s)
+        A_s = self.linear_ao(tf.concat([A_pa, A_aa], axis= -1))
         atom_hidden = self.activation(A_s)
 
         atom_i = tf.gather(atom_features, pair_i, axis= 0)
         atom_ipj = atom_i + atom_j
         P_apa = self.activation(self.linear_ap(tf.concat([pair_features, atom_ipj], axis= -1)))
         P_pp = self.activation(self.linear_pp(pair_features))
-        P_s = P_apa + P_pp
-        if training:
-            P_s = self.bn_pair(P_s)
+        # P_s = P_apa + P_pp
+        P_s = self.linear_po(tf.concat([P_apa, P_pp], axis= -1))
         pair_hidden = self.activation(P_s)
 
         return [atom_hidden, pair_hidden]

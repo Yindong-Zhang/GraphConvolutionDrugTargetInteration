@@ -34,10 +34,13 @@ class GraphEmbedding(Model):
 
     def call(self, inputs):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
-        atom_hidden, pair_hidden = self.GCLayer_list[0]([atom_features, pair_features, pair_split, atom_to_pair])
-        for i in range(1, self.num_GCNLayers):
+        atom_hidden_list = []
+        atom_hidden, pair_hidden = atom_features, pair_features
+        for i in range(self.num_GCNLayers):
             atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
-        atom_hidden = self.dense(atom_hidden)
+            atom_hidden_list.append(atom_hidden)
+        atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
+        atom_hidden = self.dense(atom_hidden_out)
         atom_hidden = self.batchnorm(atom_hidden)
         return atom_hidden
 
