@@ -21,13 +21,23 @@ class GraphEmbedding(Model):
 
         self.GCLayer_list = []
 
+        # TODO:
+        atom_dim_sum = 75
+        pair_dim_sum = 14
+        self.atom_hidden_input_list = []
+        self.pair_hidden_input_list = []
+        for i in range(self.num_GCNLayers):
+            atom_dim_sum = atom_dim_sum + self.atom_hidden_list[i]
+            pair_dim_sum = pair_dim_sum + self.pair_hidden_list[i]
+            self.atom_hidden_input_list.append(atom_dim_sum)
+            self.pair_hidden_input_list.append(pair_dim_sum)
         # self.GCLayer_list.append(MolecularConvolutionLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], self.atom_hidden_list[0]))
         self.GCLayer_list.append(WeaveLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], activation= 'tanh'))
         for i in range(1, self.num_GCNLayers):
             # self.GCLayer_list.append(
             #     MolecularConvolutionLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                WeaveLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
+                WeaveLayer(self.atom_hidden_input_list[i - 1], self.pair_hidden_input_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
@@ -35,10 +45,16 @@ class GraphEmbedding(Model):
     def call(self, inputs):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
         atom_hidden_list = []
+        pair_hidden_list = []
         atom_hidden, pair_hidden = atom_features, pair_features
+        atom_hidden_list.append(atom_hidden)
+        pair_hidden_list.append(pair_hidden)
         for i in range(self.num_GCNLayers):
+            atom_hidden = tf.concat(atom_hidden_list, axis= -1)
+            pair_hidden = tf.concat(pair_hidden_list, axis= -1)
             atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
             atom_hidden_list.append(atom_hidden)
+            pair_hidden_list.append(pair_hidden)
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
         atom_hidden = self.dense(atom_hidden_out)
         atom_hidden = self.batchnorm(atom_hidden)
