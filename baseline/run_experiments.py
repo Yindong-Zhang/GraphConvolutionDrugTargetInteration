@@ -499,7 +499,7 @@ def experiment(FLAGS, perfmeasure, deepmethod, foldcount=6): #5-fold cross valid
     FLAGS.charseqset_size = dataset.charseqset_size 
     FLAGS.charsmiset_size = dataset.charsmiset_size 
 
-    XD, XT, Y = dataset.parse_data(FLAGS)
+    XD, XT, Y = dataset._parse_data(FLAGS)
 
     XD = np.asarray(XD)
     XT = np.asarray(XT)

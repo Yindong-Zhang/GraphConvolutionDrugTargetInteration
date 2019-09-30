@@ -188,7 +188,7 @@ class DataSet():
         self.problem_type = setting_no
         self.featurizer = featurizer
         self.is_log = is_log
-        self.mol_list, self.protSeq_list, self.labels = self.parse_data(is_log)
+        self.mol_list, self.protSeq_list, self.labels = self._parse_data(is_log)
 
     def load_5fold_split(self): ### fpath should be the dataset folder /kiba/ or /davis/
         setting_no = self.problem_type
@@ -199,7 +199,7 @@ class DataSet():
 
         return train_folds, test_fold
 
-    def parse_data(self, is_log= True):
+    def _parse_data(self, is_log= True):
         print("Reading %s..." % self.filepath)
 
         ligands = json.load(open(os.path.join(self.filepath, "ligands_can.json")), object_pairs_hook=OrderedDict)

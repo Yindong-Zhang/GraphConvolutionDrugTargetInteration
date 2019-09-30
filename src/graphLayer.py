@@ -86,6 +86,36 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         pairs_shape[-1] = self.pair_output_dim
         return [tf.TensorShape(atoms_shape), tf.TensorShape(pairs_shape)]
 
+class DiffPool(tf.keras.layers.Layer):
+    def __init__(self, num_clusters, **kwargs):
+        super(self, DiffPool).__init__(**kwargs)
+        self.num_clusters = num_clusters
+
+    def build(self, input_shape):
+        atom_dims, pair_dims, pair_split_shape, atom_to_pair_shape, num_atoms_shape = input_shape
+        self.num_atoms, self.atom_dim = atom_dims
+        self.num_pairs, self.pair_dim = pair_dims
+        self.num_mols = num_atoms_shape[0]
+        self.pool_layer = WeaveLayer(n_atom_input_feat= self.atom_dim,
+                                     n_pair_input_feat= self.pair_dim,
+                                     n_atom_output_feat= self.num_cluster,
+                                     n_pair_output_feat= self.pair_dim)
+        super(self, DiffPool).build(input_shape)
+
+    def call(self, inputs, **kwargs):
+        atom_features, pair_features, pair_split, atom_to_pair, num_atoms = inputs
+
+        assign_digit, _ = self.pool_layer([atom_features, pair_features, pair_split, atom_to_pair])
+        assign_idct = tf.nn.softmax(assign_digit, axis= -1)
+
+        assign_idct_list = tf.split(assign_idct, num_atoms)
+        atom_feat_list = tf.split(atom_features, num_atoms)
+        atom_output_list = [tf.matmul(assign_idct, atom_feat, transpose_a= True) for assign_idct, atom_feat in zip(assign_idct_list, atom_feat_list)]
+        atom_output = tf.stack(atom_output_list, axis= 0)
+        return atom_output
+
+    def compute_output_shape(self, input_shape):
+        return (self.num_mols, self.num_clusters, self.atom_dim)
 
 class WeaveLayer(tf.keras.layers.Layer):
 

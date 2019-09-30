@@ -24,20 +24,18 @@ class GraphEmbedding(Model):
         # TODO:
         atom_dim_sum = 75
         pair_dim_sum = 14
-        self.atom_hidden_input_list = []
-        self.pair_hidden_input_list = []
+        self.atom_hidden_input_list = [atom_dim_sum, ]
+        self.pair_hidden_input_list = [pair_dim_sum, ]
         for i in range(self.num_GCNLayers):
             atom_dim_sum = atom_dim_sum + self.atom_hidden_list[i]
             pair_dim_sum = pair_dim_sum + self.pair_hidden_list[i]
             self.atom_hidden_input_list.append(atom_dim_sum)
             self.pair_hidden_input_list.append(pair_dim_sum)
-        # self.GCLayer_list.append(MolecularConvolutionLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], self.atom_hidden_list[0]))
-        self.GCLayer_list.append(WeaveLayer(self.atom_features, self.pair_features, self.atom_hidden_list[0], self.pair_hidden_list[0], activation= 'tanh'))
-        for i in range(1, self.num_GCNLayers):
+        for i in range(self.num_GCNLayers):
             # self.GCLayer_list.append(
-            #     MolecularConvolutionLayer(self.atom_hidden_list[i - 1], self.pair_hidden_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
+            #     MolecularConvolutionLayer(self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                WeaveLayer(self.atom_hidden_input_list[i - 1], self.pair_hidden_input_list[i - 1], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
+                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
