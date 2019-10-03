@@ -40,7 +40,7 @@ class GraphEmbedding(Model):
         self.dense = Dense(self.graph_features, activation='tanh')
         self.batchnorm = BatchNormalization()
 
-    def call(self, inputs):
+    def call(self, inputs, training= None):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
         atom_hidden_list = []
         pair_hidden_list = []
@@ -54,8 +54,9 @@ class GraphEmbedding(Model):
             atom_hidden_list.append(atom_hidden)
             pair_hidden_list.append(pair_hidden)
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
+        print(" training: %s" %(training, ))
         atom_hidden = self.dense(atom_hidden_out)
-        atom_hidden = self.batchnorm(atom_hidden)
+        atom_hidden = self.batchnorm(atom_hidden, training= training)
         return atom_hidden
 
     def compute_output_shape(self, input_shape):

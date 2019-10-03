@@ -54,7 +54,7 @@ log_f = open(os.path.join(log_dir, 'log'), 'w')
 printf = partial(log, f = log_f)
 
 filepath = os.path.join(PROJPATH, "data/%s/" %(args.dataset, ))
-weave_featurizer = WeaveFeaturizer(explicit_H= True)
+weave_featurizer = WeaveFeaturizer()
 
 PROTSEQLENGTH= 1000
 dataset = DataSet(fpath=filepath,
@@ -109,7 +109,7 @@ DTAModel= Model(inputs = [atoms_input, protSeq],
 tf.enable_eager_execution()
 if args.pretrain:
     print("pretrain...")
-    DrugPropertyModel.summary() #to test:
+    DrugPropertyModel.summary()
     pretrain(DrugPropertyModel,
              dataset= "kiba_origin",
              dir_prefix= prefix,
@@ -124,12 +124,14 @@ def loop_dataset(indices, optimizer = None):
     mean_loss = 0
     mean_ci = 0
     count = len(indices) // args.batchsize
+    isTraining = optimizer is not None
+    print("training: %s" %(isTraining, ))
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
             dataset.iter_batch(args.batchsize, indices, shuffle=True, )):
         # print(it)
 
         with tf.GradientTape() as tape:
-            logit = DTAModel([batch_mol, batch_protSeq])
+            logit = DTAModel([batch_mol, batch_protSeq], training= isTraining)
             # print(logit.numpy(), labels)
             loss_tensor = tf.losses.mean_squared_error(labels, logit)
             ci_tensor = cindex_score(labels, logit)
@@ -147,6 +149,8 @@ def loop_dataset(indices, optimizer = None):
         if it % args.print_every == 0:
             printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
 
+        if it > 20:
+            break
 
     return mean_loss, mean_ci
 

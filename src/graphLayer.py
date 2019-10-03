@@ -47,8 +47,6 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         self.linear_ap = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_pp = Dense(n_pair_output_feat, activation= None, use_bias= True, kernel_initializer= self.init)
         self.linear_po = Dense(n_pair_output_feat, use_bias= True, kernel_initializer= self.init)
-        self.bn_pair = BatchNormalization()
-        self.bn_atoms = BatchNormalization()
         self.activation = LeakyReLU(leaky_alpha)
 
     def call(self, inputs, training= None):
