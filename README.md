@@ -1,57 +1,21 @@
-# About DeepDTA: deep drug-target binding affinity prediction
+# About graphConvolutionDTA: graph convolution drug-target binding affinity prediction
+This repository contains drug-target binding affinity prediction using graph convolution in molecular side, similar to ["Compound-protein Interaction Prediction with End-to-end Learning of Neural Networks for Graphs and Sequences (Bioinformatics, 2018)"](https://github.com/masashitsubaki/CPI_prediction)
 
-The approach used in this work is the modeling of protein sequences and compound 1D representations (SMILES) with convolutional neural networks (CNNs) to predict the binding affinity value of drug-target pairs.
 
-![Figure](https://github.com/hkmztrk/DeepDTA/blob/master/docs/figures/deepdta.PNG)
-# Installation
+The approach used in this work model protein sequences  using convolutional neural networks (CNNs) and compound molecular graph using  graph convolution network(WeaveLayer for example) to predict the binding affinity value of drug-target pairs.
 
-## Data
 
-Please see the [readme](https://github.com/hkmztrk/DeepDTA/blob/master/data/README.md) for detailed explanation.
+I use dataset from [deepDTA](http://arxiv.org/abs/1801.10193), which use convolution network on both protein sequence and compound SMILES sequence reached best performance of 0.86. This method using molecular graph convolution(WeaveModule for example) roughly achieve 0.79.
 
+
+* Different depth and size of graph convolution layer are searched
+* A pretraining experiment on graph convolution side using calculated molecular property, see no evident improvement, idea from [http://arxiv.org/abs/1712.02734] .pretraing on [KIBA origin dataset](http://arxiv.org/abs/1801.10193).
+* a biInteraction layer between compound atom vectors following GCN and protein sequence vector following CNN, similar to [http://arxiv.org/abs/1806.07537].
 ## Requirements
 
 You'll need to install following in order to run the codes.
 
-*  [Python 3.4 <=](https://www.python.org/downloads/)
-*  [Keras 2.x](https://pypi.org/project/Keras/)
-*  [Tensorflow 1.x](https://www.tensorflow.org/install/)
+*  [Python 3.6 >=]
+*  [Tensorflow 1.13 >=](https://www.tensorflow.org/install/)
 *  numpy
 *  matplotlib
-
-You have to place "data" folder under "source" directory. 
-
-# Usage
-```
-python run_experiments.py --num_windows 32 \
-                          --seq_window_lengths 8 12 \
-                          --smi_window_lengths 4 8 \
-                          --batch_size 256 \
-                          --num_epoch 100 \
-                          --max_seq_len 1000 \
-                          --max_smi_len 100 \
-                          --dataset_path 'data/kiba/' \
-                          --problem_type 1 \
-                          --log_dir 'logs/'
-
-
-```
-
-
-
-
-
-**For citation:**
-
-```
-@article{ozturk2018deepdta,
-  title={DeepDTA: deep drug--target binding affinity prediction},
-  author={{\"O}zt{\"u}rk, Hakime and {\"O}zg{\"u}r, Arzucan and Ozkirimli, Elif},
-  journal={Bioinformatics},
-  volume={34},
-  number={17},
-  pages={i821--i829},
-  year={2018},
-  publisher={Oxford University Press}
-}
-```

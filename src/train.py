@@ -16,6 +16,7 @@ from src.emetrics import cindex_score
 from src.utils import log
 from pprint import pprint
 from functools import partial
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to use in training")
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
@@ -125,7 +126,6 @@ def loop_dataset(indices, optimizer = None):
     mean_ci = 0
     count = len(indices) // args.batchsize
     isTraining = optimizer is not None
-    print("training: %s" %(isTraining, ))
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
             dataset.iter_batch(args.batchsize, indices, shuffle=True, )):
         # print(it)
@@ -149,8 +149,8 @@ def loop_dataset(indices, optimizer = None):
         if it % args.print_every == 0:
             printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
 
-        if it > 20:
-            break
+        # if it > 20:
+        #     break
 
     return mean_loss, mean_ci
 

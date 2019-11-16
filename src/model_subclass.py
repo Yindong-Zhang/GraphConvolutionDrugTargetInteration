@@ -21,7 +21,6 @@ class GraphEmbedding(Model):
 
         self.GCLayer_list = []
 
-        # TODO:
         atom_dim_sum = 75
         pair_dim_sum = 14
         self.atom_hidden_input_list = [atom_dim_sum, ]
@@ -54,7 +53,7 @@ class GraphEmbedding(Model):
             atom_hidden_list.append(atom_hidden)
             pair_hidden_list.append(pair_hidden)
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
-        print(" training: %s" %(training, ))
+        # print(" training: %s" %(training, ))
         atom_hidden = self.dense(atom_hidden_out)
         atom_hidden = self.batchnorm(atom_hidden, training= training)
         return atom_hidden
