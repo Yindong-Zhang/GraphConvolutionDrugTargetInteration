@@ -9,7 +9,7 @@ I use dataset from [deepDTA](http://arxiv.org/abs/1801.10193), which use convolu
 
 
 * Different depth and size of graph convolution layer are searched
-* A pretraining experiment on graph convolution side using calculated molecular property, see a little improvement about 0.1-0.2, idea from [http://arxiv.org/abs/1712.02734] .pretraing on [KIBA origin dataset](http://arxiv.org/abs/1801.10193).
+* A pretraining experiment on graph convolution side using calculated molecular property, see a little improvement about 0.01, idea from [http://arxiv.org/abs/1712.02734] .pretraing on [KIBA origin dataset](http://arxiv.org/abs/1801.10193).
 * a biInteraction layer between compound atom vectors following GCN and protein sequence vector following CNN, similar to [http://arxiv.org/abs/1806.07537].
 ## Requirements
 
