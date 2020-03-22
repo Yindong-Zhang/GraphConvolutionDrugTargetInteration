@@ -40,7 +40,7 @@ class GraphEmbedding(Model):
         self.batchnorm = BatchNormalization()
 
     def call(self, inputs, training= None):
-        atom_features, pair_features, pair_split, atom_split, atom_to_pair = inputs
+        atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms = inputs
         atom_hidden_list = []
         pair_hidden_list = []
         atom_hidden, pair_hidden = atom_features, pair_features
@@ -49,7 +49,7 @@ class GraphEmbedding(Model):
         for i in range(self.num_GCNLayers):
             atom_hidden = tf.concat(atom_hidden_list, axis= -1)
             pair_hidden = tf.concat(pair_hidden_list, axis= -1)
-            atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair])
+            atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair, num_atoms])
             atom_hidden_list.append(atom_hidden)
             pair_hidden_list.append(pair_hidden)
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)

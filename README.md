@@ -15,7 +15,7 @@ I use dataset from [deepDTA](http://arxiv.org/abs/1801.10193), which use convolu
 
 You'll need to install following in order to run the codes.
 
-*  [Python 3.6 >=]
-*  [Tensorflow 1.13 >=](https://www.tensorflow.org/install/)
+*  [Python 3.6]
+*  [Tensorflow 1.14](https://www.tensorflow.org/install/)
 *  numpy
 *  matplotlib

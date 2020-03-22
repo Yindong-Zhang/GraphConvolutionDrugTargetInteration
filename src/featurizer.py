@@ -145,51 +145,9 @@ def atom_features(atom,
         from rdkit import Chem
         results = one_of_k_encoding_unk(
             atom.GetSymbol(),
-            [
-                'C',
-                'N',
-                'O',
-                'S',
-                'F',
-                'Si',
-                'P',
-                'Cl',
-                'Br',
-                'Mg',
-                'Na',
-                'Ca',
-                'Fe',
-                'As',
-                'Al',
-                'I',
-                'B',
-                'V',
-                'K',
-                'Tl',
-                'Yb',
-                'Sb',
-                'Sn',
-                'Ag',
-                'Pd',
-                'Co',
-                'Se',
-                'Ti',
-                'Zn',
-                'H',  # H?
-                'Li',
-                'Ge',
-                'Cu',
-                'Au',
-                'Ni',
-                'Cd',
-                'In',
-                'Mn',
-                'Zr',
-                'Cr',
-                'Pt',
-                'Hg',
-                'Pb',
-                'Unknown'
+            ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca',  'Fe', 'As', 'Al', 'I', 'B', 'V', 'K',
+                'Tl', 'Yb',  'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H', # H?
+                'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb', 'Unknown'
             ]) + one_of_k_encoding(atom.GetDegree(),
                                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) + \
                   one_of_k_encoding_unk(atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5, 6]) + \
@@ -245,13 +203,13 @@ def pair_features(mol, edge_list, canon_adj_list, bt_len=6,
             # first `bt_len` features are bond features(if applicable)
             features[a1, a2, :bt_len] = np.asarray(
                 edge_list[tuple(sorted((a1, a2)))], dtype=float)
-        for ring in rings:
+        for ring in rings: # 增加特征： 是否处于同一环中
             if a1 in ring:
                 # `bt_len`-th feature is if the pair of atoms are in the same ring
                 features[a1, ring, bt_len] = 1
                 features[a1, a1, bt_len] = 0.
         # graph distance between two atoms
-        if graph_distance:
+        if graph_distance: # 增加特征， 距离在max-distance 的原子，通过在邻接矩阵对应位置置为1表示
             distance = find_distance(
                 a1, num_atoms, canon_adj_list, max_distance=max_distance)
             features[a1, :, bt_len + 1:] = distance
@@ -285,34 +243,39 @@ def find_distance(a1, num_atoms, canon_adj_list, max_distance=7):
         radial = radial + 1
     return distance
 
-class WeaveMol(object):
+class Mol(object):
     """Holds information about a molecule
-    Molecule struct used in weave models
+    Molecule struct
     """
 
-    def __init__(self, nodes, pairs):
-        self.nodes = nodes
-        self.pairs = pairs
-        self.num_atoms = self.nodes.shape[0]
-        self.n_features = self.nodes.shape[1]
+    def __init__(self, nodes, pairs, atom_in_pair):
+        self._nodes = nodes
+        self._pairs = pairs
+        self._atom_in_pair = atom_in_pair
+        self._num_atoms = self.nodes.shape[0]
+        self._atom_dim = self.nodes.shape[1]
 
-    def get_pair_features(self):
-        return self.pairs
+    @property
+    def pair_features(self):
+        return self._pairs
 
-    def get_atom_features(self):
-        return self.nodes
+    @property
+    def atom_features(self):
+        return self._nodes
 
-    def get_num_atoms(self):
-        return self.num_atoms
+    @property
+    def num_atoms(self):
+        return self._num_atoms
 
-    def get_num_features(self):
-        return self.n_features
+    @property
+    def atom_dim(self):
+        return self._atom_dim
 
 
 class WeaveFeaturizer(Featurizer):
     name = ['weave_mol']
 
-    def __init__(self, graph_distance=True, explicit_H=False,
+    def __init__(self, graph_distance=False, explicit_H=False,
                  use_chirality=False):
         # Distance is either graph distance(True) or Euclidean distance(False,
         # only support datasets providing Cartesian coordinates)
@@ -340,24 +303,38 @@ class WeaveFeaturizer(Featurizer):
         nodes = np.vstack(nodes)
 
         # Get bond lists
-        edge_list = {}
+        edge_feat_ls = []
         for b in mol.GetBonds():
-            edge_list[tuple(sorted([b.GetBeginAtomIdx(),
-                                    b.GetEndAtomIdx()]))] = bond_features(
-                b, use_chirality=self.use_chirality)
+            edge_feat_ls.append(
+                ((b.GetBeginAtomIdx(), b.GetEndAtomIdx()), bond_features(b, use_chirality=self.use_chirality))
+                )
+            edge_feat_ls.append(
+                ((b.GetEndAtomIdx(), b.GetBeginAtomIdx()), bond_features(b, use_chirality=self.use_chirality))
+            )
+
+        edge_feat_ls.sort(key= lambda edge: edge[0])
 
         # Get canonical adjacency list
-        canon_adj_list = [[] for mol_id in range(len(nodes))]
-        for edge in edge_list.keys():
-            canon_adj_list[edge[0]].append(edge[1])
-            canon_adj_list[edge[1]].append(edge[0])
+        # canon_adj_list = [[] for mol_id in range(len(nodes))]
+        # for edge in edge_feat_ls.keys():
+        #     canon_adj_list[edge[0]].append(edge[1])
+        #     canon_adj_list[edge[1]].append(edge[0])
+
+        atom2pair_ls = []
+        pair_ls = []
+        for edge_feat in edge_feat_ls:
+            atom2pair_ls.append(edge_feat[0])
+            pair_ls.append(edge_feat[1])
+
+        atom2pair= np.array(atom2pair_ls)
+        pairs = np.vstack(pair_ls)
 
         # Calculate pair features
-        pairs = pair_features(
-            mol,
-            edge_list,
-            canon_adj_list,
-            bt_len=6,
-            graph_distance=self.graph_distance)
+        # pairs = pair_features(
+        #     mol,
+        #     edge_feat_dict,
+        #     canon_adj_list,
+        #     bt_len=6,
+        #     graph_distance=self.graph_distance)
 
-        return WeaveMol(nodes, pairs)
+        return (nodes, pairs, atom2pair)

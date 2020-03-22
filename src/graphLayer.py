@@ -186,11 +186,11 @@ class WeaveLayer(tf.keras.layers.Layer):
 
         inputs: atom_features, pair_features, pair_split, atom_to_pair
         """
-        atom_features, pair_features, pair_split, atom_to_pair = inputs
-
+        atom_features, pair_features, pair_split, atom_to_pair, num_atoms = inputs
+        num_atoms_r0 = tf.reshape(num_atoms, ())
         AA = self.linear_aa(atom_features)
         PA = self.linear_pa(pair_features)
-        PA = tf.segment_sum(PA, pair_split)
+        PA = tf.unsorted_segment_sum(PA, pair_split, num_atoms_r0)
 
         atom_hidden = tf.concat([AA, PA], -1)
         A = self.linear_ao(atom_hidden)

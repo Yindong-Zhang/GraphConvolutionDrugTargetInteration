@@ -134,44 +134,56 @@ def load_5fold_split(filepath, setting_no):
 def gather_mol(mols):
     """
     combine multiple moleculars in one big graph
-    :param mols: batch of deepchem.weaveMol, consist of a tuple of (list of mol, list of label, list of weight)
+    :param mols: batch of Mol, consist of a tuple of (list of mol, list of label, list of weight)
     :return:batch of data consist of (atom features, pair_features, pair_inds, atom_inds, atom_to_pair), \
     in shape (num_atoms, atom_features), ( num_pairs, pair_features), (num_pairs, 1), (num_atoms, 1), (num_pairs, 2))
     in which num_pairs = sum of num_atoms * num_atoms in each molecular
     """
-    atom_feat = []
-    pair_feat = []
-    atom_split = []
-    atom_to_pair = []
-    pair_split = []
+    atom_feat_ls = []
+    pair_feat_ls = []
+    atom_split_ls = []
+    atom2pair_ls = []
+    pair_split_ls = []
     start = 0
     for im, mol in enumerate(mols):
-        n_atoms = mol.get_num_atoms()
+        atom_feat, pair_feat, atom_in_pair = mol
+        # n_atoms = mol.get_num_atoms()
         # number of atoms in each molecule
-        atom_split.extend([im] * n_atoms)
+        # atom_split.extend([im] * n_atoms)
         # index of pair features
-        C0, C1 = np.meshgrid(np.arange(n_atoms), np.arange(n_atoms))
-        atom_to_pair.append(
-            np.transpose(
-                np.array([C1.flatten() + start,
-                          C0.flatten() + start])))
+        # C0, C1 = np.meshgrid(np.arange(n_atoms), np.arange(n_atoms))
+        # atom_to_pair.append(
+        #     np.transpose(
+        #         np.array([C1.flatten() + start,
+        #                   C0.flatten() + start])))
         # number of pairs for each atom
-        pair_split.extend(C1.flatten() + start)
-        start = start + n_atoms
-
+        # pair_split.extend(C1.flatten() + start)
+        # start = start + n_atoms
+        #
         # atom features
-        atom_feat.append(mol.get_atom_features())
+        # atom_feat.append(mol.get_atom_features())
         # pair features
-        pair_feat.append(
-            np.reshape(mol.get_pair_features(),
-                       (n_atoms * n_atoms, -1)))
+        # pair_feat.append(
+        #     np.reshape(mol.get_pair_features(),
+        #                (n_atoms * n_atoms, -1)))
+        n_atom = atom_feat.shape[0]
+        atom_feat_ls.append(atom_feat)
+        pair_feat_ls.append(pair_feat)
 
+        atom2pair = atom_in_pair + start
+        pair_head = atom2pair[:, 0]
+        pair_split_ls.append(pair_head)
+        atom2pair_ls.append(atom2pair)
+        atom_split_ls.extend([im] * n_atom)
+
+        start += n_atom
     mol_merged = [
-        np.concatenate(atom_feat, axis=0).astype(np.float32),
-        np.concatenate(pair_feat, axis=0).astype(np.float32),
-        np.array(pair_split),
-        np.array(atom_split),
-        np.concatenate(atom_to_pair, axis=0),
+        np.concatenate(atom_feat_ls, axis=0).astype(np.float32),
+        np.concatenate(pair_feat_ls, axis=0).astype(np.float32),
+        np.concatenate(pair_split_ls, axis= 0),
+        np.array(atom_split_ls),
+        np.concatenate(atom2pair_ls, axis=0),
+        start # num of atoms
     ]
     return mol_merged
 
@@ -199,7 +211,7 @@ class DataSet():
 
         return train_folds, test_fold
 
-    def _parse_data(self, is_log= True):
+    def _parse_data(self, is_log= False):
         print("Reading %s..." % self.filepath)
 
         ligands = json.load(open(os.path.join(self.filepath, "ligands_can.json")), object_pairs_hook=OrderedDict)
@@ -216,7 +228,7 @@ class DataSet():
 
         return mol_list, prot_list, Y
 
-    def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
+    def iter_batch(self, batchsize, inds, shuffle = False, seed = 32):
         """
 
         :param batchsize:
@@ -229,6 +241,7 @@ class DataSet():
         mol_array = np.array(mol_list)
         prot_array = np.array(prot_list)
         mol_inds, prot_inds = np.where(np.isnan(aff_mat) == False)
+
         num_samples = mol_inds.shape[0]
         sample_inds = np.arange(num_samples)[inds]
         num_batches = len(sample_inds) // batchsize

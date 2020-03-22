@@ -27,15 +27,15 @@ parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [16, 8], he
 parser.add_argument("--graph_features", type= int, default= 32, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
-parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 16], help = "hidden dimension list in BiInteraction model.")
+parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 1], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
 parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
-parser.add_argument("--print_every", type= int, default= 32, help= "print intervals during loop dataset.")
+parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
 
 args = parser.parse_args()
-
+tf.enable_eager_execution()
 
 pprint(vars(args))
 prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-denseConnection/" \
@@ -68,7 +68,7 @@ val_inds = fold5_train[4]
 test_inds = test_inds
 
 atom_dim = 75
-pair_dim = 14
+pair_dim = 6
 props_dim = 100
 
 optimizer = tf.train.AdamOptimizer(learning_rate= args.lr)
@@ -78,7 +78,8 @@ pair_features = Input(shape=(pair_dim,))
 pair_split = Input(shape=(), dtype=tf.int32)
 atom_split = Input(shape=(), dtype=tf.int32)
 atom_to_pair = Input(shape=(2,), dtype=tf.int32)
-atoms_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair]
+num_atoms = Input(shape=(), dtype= tf.int32, batch_size= 1)
+atoms_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms]
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
 
@@ -107,7 +108,7 @@ DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,
                 name= "DTAmodel")
 
-tf.enable_eager_execution()
+
 if args.pretrain:
     print("pretrain...")
     DrugPropertyModel.summary()
