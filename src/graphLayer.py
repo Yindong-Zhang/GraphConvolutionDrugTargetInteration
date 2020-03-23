@@ -54,7 +54,8 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
 
         inputs: atom_features, pair_features, pair_split, atom_to_pair
         """
-        atom_features, pair_features, pair_split, atom_to_pair = inputs
+        atom_features, pair_features, pair_split, atom_to_pair, num_atoms = inputs
+        num_atoms_r0 = tf.reshape(num_atoms, ())
 
         pair_i = atom_to_pair[:, 0]
         pair_j = atom_to_pair[:, 1]
@@ -62,7 +63,7 @@ class MolecularConvolutionLayer(tf.keras.layers.Layer):
         atom_j = tf.gather(atom_features, pair_j, axis= 0)
         atom_i = tf.gather(atom_features, pair_i, axis= 0)
         A_iaj = self.activation(self.linear_pap(tf.concat([atom_i, pair_features, atom_j], axis= -1)))
-        A_iaj = tf.segment_sum(A_iaj, pair_i)
+        A_iaj = tf.unsorted_segment_sum(A_iaj, pair_i, num_atoms_r0)
         A_pa = self.activation(self.linear_pa(tf.concat([atom_features, A_iaj], axis= -1)))
         A_aa = self.activation(self.linear_aa(atom_features))
         A_s = self.linear_ao(tf.concat([A_pa, A_aa], axis= -1))

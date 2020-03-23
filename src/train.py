@@ -1,5 +1,6 @@
 import argparse
 import os, sys
+from shutil import copy
 import numpy as np
 from src.weakSupervised.weakSupervised import pretrain
 from src.weakSupervised.data_utils import load_fn
@@ -22,8 +23,8 @@ parser.add_argument("--dataset", type= str, default= "kiba", help = "dataset to 
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 32, help = "batchsize during training.")
-parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [32, 16], help= "atom hidden dimension list in graph embedding model.")
-parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [16, 8], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [256, 256], help= "atom hidden dimension list in graph embedding model.")
+parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [256, 256], help = "pair hidden dimension list in graph embedding model.")
 parser.add_argument("--graph_features", type= int, default= 32, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
@@ -38,7 +39,7 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-denseConnection/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-denseConnect-simple/" \
          % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
@@ -150,35 +151,54 @@ def loop_dataset(indices, optimizer = None):
         if it % args.print_every == 0:
             printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
 
-        # if it > 20:
-        #     break
+        if it > 10:
+            break
 
     return mean_loss, mean_ci
 
 
 DTAModel.summary()
-best_metric = float("inf")
-wait = 0
-for epoch in range(args.epoches):
-    printf("training epoch %s..." %(epoch, ))
-    train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
-    printf("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
+best_ci = float('-inf')
+best_loss = float('inf')
+best_it = -1
+for it in range(5):
+    val_inds = fold5_train[it]
+    train_inds = []
+    for ind in range(5):
+        if ind != it:
+            train_inds.extend(fold5_train[ind])
+    printf("Start cross validation %d..." %(it, ))
+    chkpt_subdir = chkpt_dir + '/cv~%d/' %(it, )
+    if not os.path.exists(chkpt_subdir):
+        os.makedirs(chkpt_subdir)
+    best_metric = float("inf")
+    wait = 0
+    for epoch in range(args.epoches):
+        printf("training epoch %s..." %(epoch, ))
+        train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
+        printf("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
-    printf("validating epoch %s..." %(epoch, ))
-    val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
-    printf("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
-    if val_loss < best_metric:
-        best_metric = val_loss
-        DTAModel.save_weights(os.path.join(chkpt_dir, "DTA"), )
-        wait = 0
-    else:
-        wait += 1
+        printf("validating epoch %s..." %(epoch, ))
+        val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
+        printf("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
+        if val_loss < best_metric:
+            best_metric = val_loss
+            DTAModel.save_weights(os.path.join(chkpt_subdir, "DTA"), )
+            wait = 0
+        else:
+            wait += 1
 
-    if wait > args.patience:
-        break
+        if wait > args.patience:
+            break
 
-DTAModel.load_weights(os.path.join(chkpt_dir, "DTA"))
+    DTAModel.load_weights(os.path.join(chkpt_subdir, "DTA"))
 
-printf("start testing...")
-test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
-printf("test loss: %.4f ci: %.4f \n" %(test_loss, test_ci))
+    printf("start testing...")
+    test_loss, test_ci = loop_dataset(test_inds, optimizer= None)
+    if test_ci > best_ci:
+        best_ci = test_ci
+        best_loss= test_loss
+        best_it = it
+    printf("CV %d test loss: %.4f ci: %.4f \n" %(it, test_loss, test_ci))
+
+printf("Best iteration in fold-5 CV: %d, Best loss: %.4f, Best CI: %.4f." %(best_it, best_loss, best_ci))

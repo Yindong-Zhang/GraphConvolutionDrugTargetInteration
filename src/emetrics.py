@@ -38,6 +38,7 @@ def get_aupr(Y, P):
 
 
 def get_cindex(Y, P):
+    # Y 与 P 一一对应，
     summ = 0
     pair = 0
     
