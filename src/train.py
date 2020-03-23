@@ -108,7 +108,11 @@ DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'dru
 DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,
                 name= "DTAmodel")
+init_weight_subdir = chkpt_dir + '/initial/'
+if not os.path.exists(init_weight_subdir):
+    os.makedirs(init_weight_subdir)
 
+DTAModel.save_weights(init_weight_subdir)
 
 if args.pretrain:
     print("pretrain...")
@@ -171,16 +175,18 @@ for it in range(5):
     chkpt_subdir = chkpt_dir + '/cv~%d/' %(it, )
     if not os.path.exists(chkpt_subdir):
         os.makedirs(chkpt_subdir)
+    DTAModel.load_weights(init_weight_subdir)
+
     best_metric = float("inf")
     wait = 0
     for epoch in range(args.epoches):
         printf("training epoch %s..." %(epoch, ))
         train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
-        printf("train epoch %.4f loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
+        printf("train epoch %d loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
         printf("validating epoch %s..." %(epoch, ))
         val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
-        printf("validating epoch %.4f loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
+        printf("validating epoch %d loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
         if val_loss < best_metric:
             best_metric = val_loss
             DTAModel.save_weights(os.path.join(chkpt_subdir, "DTA"), )
