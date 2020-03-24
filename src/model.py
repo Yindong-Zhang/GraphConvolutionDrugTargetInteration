@@ -56,6 +56,7 @@ def BiInteraction(graph_dim, seq_dim, name= None):
     return model
 
 
+
 if __name__ == "__main__":
     model = build_protSeq_embedding_model([4, 8, 8], [5, 7, 9], 255, 1000)
     model = build_graph_embedding_model(16, 8, [8, 8], [4, 4], 16, 8)

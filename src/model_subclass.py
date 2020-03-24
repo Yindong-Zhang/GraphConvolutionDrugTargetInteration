@@ -141,10 +141,38 @@ class BiInteraction(Layer):
         return tf.TensorShape((batchsize, 1))
 
 
+class ConcatMlp(Layer):
+    def __init__(self, hidden_list= [512, 1024], activation ='relu', initializer ='he_uniform', **kwargs):
+        super(ConcatMlp, self).__init__(**kwargs)
+        self.hidden_size= hidden_list
+        self.activation = activation
+        self.initializer = initializer
+
+    def build(self, input_shape):
+        self.hidden_layers =[]
+        for hidden in self.hidden_size:
+            self.hidden_layers.append(Dense(hidden, activation= self.activation, kernel_initializer= self.initializer))
+        self.output_layer = Dense(1)
+
+    def call(self, inputs):
+        """
+
+        :param inputs: [atom_embed, protSeq_embed, atom_split] in shape ( n_atoms, atom_hidden), (batchsize, seqlen, hidden), (n_atoms, )
+        :return:
+        """
+        atom_embed, protSeq_embed, atom_split = inputs
+        mol_embed = tf.segment_max(atom_embed, atom_split)
+        prot_embed = tf.reduce_max(protSeq_embed, axis = 1)
+        hidden = tf.concat([mol_embed, prot_embed], axis = -1)
+        for layer in self.hidden_layers:
+            hidden = layer(hidden)
+        output = self.output_layer(hidden)
+        return output
+
 if __name__ == "__main__":
     tf.enable_eager_execution()
 
-    graph_embed_model = GraphEmbedding([8, 8], [4, 4], 16, 8)
+    # graph_embed_model = GraphEmbedding([8, 8], [4, 4], 16, 8)
     # graph_embed_model.build([tf.TensorShape((None, 16, )),
     #                          tf.TensorShape((None, 20, )),
     #                          tf.TensorShape((None, )),
@@ -155,4 +183,11 @@ if __name__ == "__main__":
     #                           loss='categorical_crossentropy',
     #                           metrics=['accuracy']
     #                           )
-    graph_embed_model.summary()
+    # graph_embed_model.summary()
+    # concatMlp = ConcatMlp()
+    # concatMlp.build([tf.TensorShape((100, 12)),
+    #                  tf.TensorShape((32, 100, 12)),
+    #                  tf.TensorShape((100, ))])
+    # concatMlp.compile(optimizer = 'adam', loss = 'mse')
+    # concatMlp.summary()
+    # atom_embed = tf.random((100, ))
