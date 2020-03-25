@@ -39,7 +39,7 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-concatMlp-cv5/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-BiInt-cv5/" \
          % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
@@ -100,11 +100,11 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-# affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
-#                                     dropout= args.dropout,
-#                                     activation= 'relu',
-#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
-affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, activation= 'relu')([atom_embedding, protSeq_embedding, atom_split])
+affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
+                                    dropout= args.dropout,
+                                    activation= 'relu',
+                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+# affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, activation= 'relu')([atom_embedding, protSeq_embedding, atom_split])
 DrugPropertyModel = Model(inputs= atoms_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [atoms_input, protSeq],
                 outputs= affinity,

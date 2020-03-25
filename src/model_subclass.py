@@ -95,10 +95,11 @@ class ProtSeqEmbedding(Model):
         return tf.TensorShape([batchsize, protSeqLen, embed_dim])
 
 class BiInteraction(Layer):
-    def __init__(self, hidden_list, dropout, activation = "relu", **kwargs):
+    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'glorot_uniform', **kwargs):
         super(BiInteraction, self).__init__(**kwargs)
         self.num_dense_layers = len(hidden_list)
         self.activation = activation
+        self.initializer = initializer
         self.dropout= dropout
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
@@ -109,7 +110,7 @@ class BiInteraction(Layer):
         atom_hidden_shape, prot_hidden_shape, atom_splits_shape = input_shape
         atom_dim = atom_hidden_shape[-1]
         prot_dim = prot_hidden_shape[-1]
-        self.W= self.add_weight('attention_weight', shape= (atom_dim, prot_dim), initializer= initializers.get(self.activation))
+        self.W= self.add_weight('attention_weight', shape= (atom_dim, prot_dim), initializer= initializers.get(self.initializer))
 
     def call(self, inputs, training= None):
         atom_embed, protSeq_embed, atom_splits = inputs
@@ -132,8 +133,8 @@ class BiInteraction(Layer):
         concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
-            if training:
-                concat_embed = Dropout(self.dropout)(concat_embed)
+            concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
+            # concat_embed = Dropout(self.dropout)(concat_embed, training= training)
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
@@ -154,7 +155,7 @@ class ConcatMlp(Layer):
             self.hidden_layers.append(Dense(hidden, activation= self.activation, kernel_initializer= self.initializer))
         self.output_layer = Dense(1)
 
-    def call(self, inputs):
+    def call(self, inputs, training= None):
         """
 
         :param inputs: [atom_embed, protSeq_embed, atom_split] in shape ( n_atoms, atom_hidden), (batchsize, seqlen, hidden), (n_atoms, )
@@ -166,6 +167,7 @@ class ConcatMlp(Layer):
         hidden = tf.concat([mol_embed, prot_embed], axis = -1)
         for layer in self.hidden_layers:
             hidden = layer(hidden)
+            hidden = BatchNormalization(axis= -1)(hidden, training = training)
         output = self.output_layer(hidden)
         return output
 
