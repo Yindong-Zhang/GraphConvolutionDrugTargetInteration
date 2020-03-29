@@ -25,10 +25,10 @@ parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in
 parser.add_argument("--batchsize", type= int, default= 128, help = "batchsize during training.")
 parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [256, 256], help= "atom hidden dimension list in graph embedding model.")
 parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [256, 256], help = "pair hidden dimension list in graph embedding model.")
-parser.add_argument("--graph_features", type= int, default= 32, help= "graph features dimension")
+parser.add_argument("--graph_features", type= int, default= 512, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
-parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [128, 1], help = "hidden dimension list in BiInteraction model.")
+parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [256, 1], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
 parser.add_argument("--epoches", type= int, default= 3, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
@@ -64,8 +64,6 @@ dataset = DataSet(fpath=filepath,
                   featurizer=weave_featurizer,
                   is_log= args.dataset == 'davis')
 fold5_train, test_inds = dataset.load_5fold_split()
-train_inds = list(chain(*fold5_train[:3]))
-val_inds = fold5_train[4]
 test_inds = test_inds
 
 atom_dim = 75

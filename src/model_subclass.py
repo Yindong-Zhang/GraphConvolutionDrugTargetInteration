@@ -21,8 +21,8 @@ class GraphEmbedding(Model):
 
         self.GCLayer_list = []
 
-        atom_dim_sum = 75
-        pair_dim_sum = 14
+        atom_dim_sum = atom_features
+        pair_dim_sum = pair_features
         self.atom_hidden_input_list = [atom_dim_sum, ]
         self.pair_hidden_input_list = [pair_dim_sum, ]
         for i in range(self.num_GCNLayers):
@@ -34,10 +34,9 @@ class GraphEmbedding(Model):
             # self.GCLayer_list.append(
             #     MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
+                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'relu'))
 
-        self.dense = Dense(self.graph_features, activation='tanh')
-        self.batchnorm = BatchNormalization()
+        self.dense = Dense(self.graph_features, activation='relu')
 
     def call(self, inputs, training= None):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms = inputs
@@ -55,7 +54,6 @@ class GraphEmbedding(Model):
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
         # print(" training: %s" %(training, ))
         atom_hidden = self.dense(atom_hidden_out)
-        atom_hidden = self.batchnorm(atom_hidden, training= training)
         return atom_hidden
 
     def compute_output_shape(self, input_shape):
@@ -133,7 +131,7 @@ class BiInteraction(Layer):
         concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
-            concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
+            # concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
             # concat_embed = Dropout(self.dropout)(concat_embed, training= training)
         return self.out_layer(concat_embed)
 
@@ -167,7 +165,7 @@ class ConcatMlp(Layer):
         hidden = tf.concat([mol_embed, prot_embed], axis = -1)
         for layer in self.hidden_layers:
             hidden = layer(hidden)
-            hidden = BatchNormalization(axis= -1)(hidden, training = training)
+            # hidden = BatchNormalization(axis= -1)(hidden, training = training)
         output = self.output_layer(hidden)
         return output
 

@@ -16,7 +16,7 @@ def build_graph_embedding_model(atom_dim, pair_dim, atom_hidden_list, pair_hidde
         atom_hidden, pair_hidden= WeaveLayer(atom_hidden_list[i - 1], pair_hidden_list[i - 1], atom_hidden_list[i], pair_hidden_list[i])([atom_hidden, pair_hidden, pair_split, atom_to_pair])
 
     atom_hidden = Dense(graph_features, activation='tanh')(atom_hidden)
-    atom_hidden = BatchNormalization()(atom_hidden)
+    # atom_hidden = BatchNormalization()(atom_hidden)
     graph_embed = WeaveGather(num_mols, graph_features, gaussian_expand=True)([atom_hidden, atom_split])
 
     model = tf.keras.Model(
