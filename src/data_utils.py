@@ -177,9 +177,15 @@ def gather_mol(mols):
         atom_split_ls.extend([im] * n_atom)
 
         start += n_atom
+
+    atom_feat = np.concatenate(atom_feat_ls, axis=0)
+    bond_feat = np.concatenate(pair_feat_ls, axis=0)
+
+    atom_feat_ls = [atom_feat[:, i] for i in range(atom_feat.shape[1])]
+    bond_feat_ls = [bond_feat[:, i] for i in range(bond_feat.shape[1])]
     mol_merged = [
-        np.concatenate(atom_feat_ls, axis=0).astype(np.float32),
-        np.concatenate(pair_feat_ls, axis=0).astype(np.float32),
+        atom_feat_ls,
+        bond_feat_ls,
         np.concatenate(pair_split_ls, axis= 0),
         np.array(atom_split_ls),
         np.concatenate(atom2pair_ls, axis=0),
@@ -228,7 +234,7 @@ class DataSet():
 
         return mol_list, prot_list, Y
 
-    def iter_batch(self, batchsize, inds, shuffle = False, seed = 32):
+    def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
         """
 
         :param batchsize:

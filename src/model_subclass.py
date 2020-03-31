@@ -31,12 +31,12 @@ class GraphEmbedding(Model):
             self.atom_hidden_input_list.append(atom_dim_sum)
             self.pair_hidden_input_list.append(pair_dim_sum)
         for i in range(self.num_GCNLayers):
-            # self.GCLayer_list.append(
-            #     MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'relu'))
+                MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
+            # self.GCLayer_list.append(
+            #     WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
-        self.dense = Dense(self.graph_features, activation='relu')
+        self.dense = Dense(self.graph_features, activation='tanh')
 
     def call(self, inputs, training= None):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms = inputs
@@ -54,6 +54,7 @@ class GraphEmbedding(Model):
         atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
         # print(" training: %s" %(training, ))
         atom_hidden = self.dense(atom_hidden_out)
+        # print(atom_hidden[:5])
         return atom_hidden
 
     def compute_output_shape(self, input_shape):
@@ -75,7 +76,7 @@ class ProtSeqEmbedding(Model):
         for i in range(self.num_conv_layers):
             self.conv_layer_list.append(Conv1D(filters= num_filters_list[i],
                                                      kernel_size= filter_length_list[i],
-                                                     activation='relu',
+                                                     activation='tanh',
                                                      padding='same',
                                                      strides=1))
 
@@ -83,7 +84,7 @@ class ProtSeqEmbedding(Model):
         seq_embed = self.embed(inputs)
         for layer in self.conv_layer_list:
             seq_embed = layer(seq_embed)
-
+        # print(seq_embed[:5])
         return seq_embed
 
     def compute_output_shape(self, input_shape):
@@ -91,6 +92,41 @@ class ProtSeqEmbedding(Model):
         embed_dim = self.num_filters_list[-1]
 
         return tf.TensorShape([batchsize, protSeqLen, embed_dim])
+
+class EmbeddingLayer(Layer):
+    def __init__(self, size_ls, embed_size, **kwargs): # kwargs, 申明可变参数
+        """
+
+        :param size_dict: a ls indicate [feat_dim, ]
+        """
+        super(EmbeddingLayer, self).__init__(**kwargs)
+        self.dim_ls = size_ls
+        self.embed_size= embed_size
+        self.embed_layers = []
+        self.num_feat = len(size_ls)
+        for size in self.dim_ls:
+            self.embed_layers.append(Embedding(size, self.embed_size))
+
+    def call(self, inputs, **kwargs):
+        """
+
+        :param inputs: should be a list of feat array in format {feat_name: data array}
+        :param kwargs:
+        :return:
+        """
+        embed_ls = []
+        for i, data in enumerate(inputs):
+            embed_ls.append(self.embed_layers[i](data))
+
+        ret = tf.concat(embed_ls, axis = -1)
+        return ret
+
+    def compute_output_shape(self, input_shape):
+        (b, ) = input_shape[0]
+        out_dim = self.num_feat * self.embed_size
+        return tf.TensorShape([b, out_dim])
+
+
 
 class BiInteraction(Layer):
     def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'glorot_uniform', **kwargs):
@@ -101,7 +137,7 @@ class BiInteraction(Layer):
         self.dropout= dropout
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
-            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation))
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
         self.out_layer = Dense(1)
 
     def build(self, input_shape):

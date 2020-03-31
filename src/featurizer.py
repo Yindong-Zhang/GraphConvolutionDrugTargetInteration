@@ -84,19 +84,20 @@ possible_hybridization_list = [
     Chem.rdchem.HybridizationType.SP3D2
 ]
 possible_number_radical_e_list = [0, 1, 2]
+possible_isAromatic_list = [0, 1] #atom.GetIsAromatic()
 possible_chirality_list = ['R', 'S']
 
-reference_lists = [
+atom_reference_lists = [
     possible_atom_list, possible_numH_list, possible_valence_list,
     possible_formal_charge_list, possible_number_radical_e_list,
-    possible_hybridization_list, possible_chirality_list
+    possible_hybridization_list, possible_isAromatic_list
 ]
 
-intervals = get_intervals(reference_lists)
+intervals = get_intervals(atom_reference_lists)
 
 
-def get_feature_list(atom):
-    features = 6 * [0]
+def get_atom_feature_list(atom):
+    features = 7 * [0]
     features[0] = safe_index(possible_atom_list, atom.GetSymbol())
     features[1] = safe_index(possible_numH_list, atom.GetTotalNumHs())
     features[2] = safe_index(possible_valence_list, atom.GetImplicitValence())
@@ -104,6 +105,7 @@ def get_feature_list(atom):
     features[4] = safe_index(possible_number_radical_e_list,
                              atom.GetNumRadicalElectrons())
     features[5] = safe_index(possible_hybridization_list, atom.GetHybridization())
+    features[6] = safe_index(possible_isAromatic_list, atom.GetIsAromatic())
     return features
 
 
@@ -132,10 +134,11 @@ def one_of_k_encoding_unk(x, allowable_set):
 
 def atom_to_id(atom):
     """Return a unique id corresponding to the atom type"""
-    features = get_feature_list(atom)
+    features = get_atom_feature_list(atom)
     return features_to_id(features, intervals)
 
-def atom_features(atom,
+
+def atom_features_onehot(atom,
                   bool_id_feat=False,
                   explicit_H=False,
                   use_chirality=False):
@@ -172,7 +175,7 @@ def atom_features(atom,
 
         return np.array(results)
 
-def bond_features(bond, use_chirality=False):
+def bond_features_onehot(bond, use_chirality=False):
     from rdkit import Chem
     bt = bond.GetBondType()
     bond_feats = [
@@ -186,6 +189,18 @@ def bond_features(bond, use_chirality=False):
             str(bond.GetStereo()),
             ["STEREONONE", "STEREOANY", "STEREOZ", "STEREOE"])
     return np.array(bond_feats)
+
+possible_bondType_list = [Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE, Chem.rdchem.BondType.TRIPLE, Chem.rdchem.BondType.AROMATIC]
+possible_conjuate_list = [0, 1]
+possible_inRing_list = [0, 1]
+bond_reference_lists = [possible_bondType_list, possible_conjuate_list, possible_inRing_list]
+
+def get_bond_feature_list(bond, use_chirality=False):
+    feat = [0] * len(bond_reference_lists)
+    feat[0] = safe_index(possible_bondType_list, bond.GetBondType())
+    feat[1] = safe_index(possible_conjuate_list, bond.GetIsConjugated())
+    feat[2] = safe_index(possible_inRing_list, bond.IsInRing())
+    return feat
 
 
 def pair_features(mol, edge_list, canon_adj_list, bt_len=6,
@@ -243,34 +258,6 @@ def find_distance(a1, num_atoms, canon_adj_list, max_distance=7):
         radial = radial + 1
     return distance
 
-class Mol(object):
-    """Holds information about a molecule
-    Molecule struct
-    """
-
-    def __init__(self, nodes, pairs, atom_in_pair):
-        self._nodes = nodes
-        self._pairs = pairs
-        self._atom_in_pair = atom_in_pair
-        self._num_atoms = self.nodes.shape[0]
-        self._atom_dim = self.nodes.shape[1]
-
-    @property
-    def pair_features(self):
-        return self._pairs
-
-    @property
-    def atom_features(self):
-        return self._nodes
-
-    @property
-    def num_atoms(self):
-        return self._num_atoms
-
-    @property
-    def atom_dim(self):
-        return self._atom_dim
-
 
 class WeaveFeaturizer(Featurizer):
     name = ['weave_mol']
@@ -291,25 +278,23 @@ class WeaveFeaturizer(Featurizer):
         """Encodes mol as a WeaveMol object."""
         # Atom features
         idx_nodes = [(a.GetIdx(),
-                      atom_features(
-                          a,
-                          explicit_H=self.explicit_H,
-                          use_chirality=self.use_chirality))
+                      get_atom_feature_list(a))
                      for a in mol.GetAtoms()]
         idx_nodes.sort()  # Sort by ind to ensure same order as rd_kit
         idx, nodes = list(zip(*idx_nodes))
 
         # Stack nodes into an array
-        nodes = np.vstack(nodes)
+        atom_input = np.array(nodes)
+        # atom_input = [nodes[:, i] for i in range(nodes.shape[1])] # split array column wise
 
         # Get bond lists
         edge_feat_ls = []
         for b in mol.GetBonds():
             edge_feat_ls.append(
-                ((b.GetBeginAtomIdx(), b.GetEndAtomIdx()), bond_features(b, use_chirality=self.use_chirality))
+                ((b.GetBeginAtomIdx(), b.GetEndAtomIdx()), get_bond_feature_list(b, use_chirality=self.use_chirality))
                 )
             edge_feat_ls.append(
-                ((b.GetEndAtomIdx(), b.GetBeginAtomIdx()), bond_features(b, use_chirality=self.use_chirality))
+                ((b.GetEndAtomIdx(), b.GetBeginAtomIdx()), get_bond_feature_list(b, use_chirality=self.use_chirality))
             )
 
         edge_feat_ls.sort(key= lambda edge: edge[0])
@@ -327,7 +312,8 @@ class WeaveFeaturizer(Featurizer):
             pair_ls.append(edge_feat[1])
 
         atom2pair= np.array(atom2pair_ls)
-        pairs = np.vstack(pair_ls)
+        pair_input = np.array(pair_ls)
+        # pair_input = [pairs[:, i] for i in range(pairs.shape[1])]
 
         # Calculate pair features
         # pairs = pair_features(
@@ -337,4 +323,12 @@ class WeaveFeaturizer(Featurizer):
         #     bt_len=6,
         #     graph_distance=self.graph_distance)
 
-        return (nodes, pairs, atom2pair)
+        return (atom_input, pair_input, atom2pair)
+
+    @property
+    def atom_cat_dim(self):
+        return [len(feat) + 1 for feat in atom_reference_lists]
+
+    @property
+    def bond_cat_dim(self):
+        return [len(feat) + 1 for feat in bond_reference_lists]
