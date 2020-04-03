@@ -234,7 +234,7 @@ class DataSet():
 
         return mol_list, prot_list, Y
 
-    def iter_batch(self, batchsize, inds, shuffle = True, seed = 32):
+    def iter_batch(self, batchsize, inds, shuffle = False, seed = 32):
         """
 
         :param batchsize:

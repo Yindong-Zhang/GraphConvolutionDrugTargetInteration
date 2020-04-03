@@ -31,10 +31,10 @@ class GraphEmbedding(Model):
             self.atom_hidden_input_list.append(atom_dim_sum)
             self.pair_hidden_input_list.append(pair_dim_sum)
         for i in range(self.num_GCNLayers):
-            self.GCLayer_list.append(
-                MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             # self.GCLayer_list.append(
-            #     WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
+            #     MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
+            self.GCLayer_list.append(
+                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
         self.dense = Dense(self.graph_features, activation='tanh')
 

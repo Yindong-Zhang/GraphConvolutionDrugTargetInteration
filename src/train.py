@@ -23,15 +23,15 @@ parser.add_argument("--dataset", type= str, default= "davis", help = "dataset to
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 64, help = "batchsize during training.")
-parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [256, 256], help= "atom hidden dimension list in graph embedding model.")
-parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [256, 256], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [256, 512], help= "atom hidden dimension list in graph embedding model.")
+parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [256, 512], help = "pair hidden dimension list in graph embedding model.")
 parser.add_argument("--graph_features", type= int, default= 512, help= "graph features dimension")
-parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 16], help = "numbers of 1D convolution filters protein seq embedding model.")
-parser.add_argument("--filters_length", type= int, nargs= "+", default= [16, 32], help = "filter length list of 1D conv filters in protSeq embedding.")
+parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
+parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--mol_embed_size", type= int, default= 32, help = 'molecular atom and bond feature embed size')
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [512, 1024], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
-parser.add_argument("--epoches", type= int, default= 3, help= "epoches during training..")
+parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
@@ -40,7 +40,7 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-test2-cv5/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-cv5/" \
          % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
@@ -71,7 +71,7 @@ atom_dim = len(mol_featurizer.atom_cat_dim) * args.mol_embed_size
 pair_dim = len(mol_featurizer.bond_cat_dim) * args.mol_embed_size
 props_dim = 100
 
-optimizer = tf.train.AdamOptimizer(learning_rate= args.lr)
+
 
 atom_features = [Input(shape=()) for _ in range(len(mol_featurizer.atom_cat_dim))]
 pair_features = [Input(shape=()) for _ in range(len(mol_featurizer.bond_cat_dim))]
@@ -104,11 +104,11 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-# affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
-#                                     dropout= args.dropout,
-#                                     activation= 'tanh',
-#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
-affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
+affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
+                                    dropout= args.dropout,
+                                    activation= 'tanh',
+                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+# affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
 # DrugPropertyModel = Model(inputs= mol_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [mol_input, protSeq],
                 outputs= affinity,
@@ -117,8 +117,8 @@ init_weight_subdir = chkpt_dir + '/initial/'
 if not os.path.exists(init_weight_subdir):
     os.makedirs(init_weight_subdir)
 
-DTAModel.save_weights(init_weight_subdir)
-
+# DTAModel.save_weights(init_weight_subdir)
+init_weight = DTAModel.get_weights()
 if args.pretrain:
     print("pretrain...")
     DrugPropertyModel.summary()
@@ -138,7 +138,7 @@ def loop_dataset(indices, optimizer = None):
     count = len(indices) // args.batchsize
     isTraining = optimizer is not None
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
-            dataset.iter_batch(args.batchsize, indices, shuffle=True, )):
+            dataset.iter_batch(args.batchsize, indices, shuffle=False)):
         # print(it)
         # print(batch_mol[0])
         with tf.GradientTape() as tape:
@@ -155,7 +155,8 @@ def loop_dataset(indices, optimizer = None):
         if optimizer:
             variables = DTAModel.variables
             grads = tape.gradient(loss_tensor, variables)
-            optimizer.apply_gradients(zip(grads, variables), global_step=tf.train.get_or_create_global_step())
+            optimizer.apply_gradients(zip(grads, variables), global_step= global_step) # problem here?
+            # print(tf.train.get_or_create_global_step().numpy().item())
 
         if it % args.print_every == 0:
             printf("%s / %s: mean_loss: %.4f ci: %.4f. " %(it, count, mean_loss, mean_ci))
@@ -166,21 +167,29 @@ def loop_dataset(indices, optimizer = None):
     return mean_loss, mean_ci
 
 
+global_step = tf.train.create_global_step()
+
 DTAModel.summary()
 best_ci = float('-inf')
 best_loss = float('inf')
 best_it = -1
 for it in range(5):
+    # if it != 1:
+    #     continue
     val_inds = fold5_train[it]
     train_inds = []
     for ind in range(5):
         if ind != it:
             train_inds.extend(fold5_train[ind])
+    print(max(train_inds), min(train_inds))
     printf("Start cross validation %d..." %(it, ))
     chkpt_subdir = chkpt_dir + '/cv~%d/' %(it, )
     if not os.path.exists(chkpt_subdir):
         os.makedirs(chkpt_subdir)
-    DTAModel.load_weights(init_weight_subdir)
+    DTAModel.set_weights(init_weight)
+
+    global_step.assign(0)
+    optimizer = tf.train.AdamOptimizer(learning_rate=args.lr) # careful here for optimizer record moving mean velocity and mass
 
     best_metric = float("inf")
     wait = 0

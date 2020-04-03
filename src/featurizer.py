@@ -73,7 +73,7 @@ def safe_index(l, e):
 
 possible_atom_list = [
     'C', 'N', 'O', 'S', 'F', 'P', 'Cl', 'Mg', 'Na', 'Br', 'Fe', 'Ca', 'Cu',
-    'Mc', 'Pd', 'Pb', 'K', 'I', 'Al', 'Ni', 'Mn'
+    'Mc', 'Pd', 'Pb', 'K', 'I', 'Al', 'Ni', 'Mn' # 21
 ]
 possible_numH_list = [0, 1, 2, 3, 4]
 possible_valence_list = [0, 1, 2, 3, 4, 5, 6]
