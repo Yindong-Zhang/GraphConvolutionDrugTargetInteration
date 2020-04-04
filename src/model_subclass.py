@@ -176,6 +176,51 @@ class BiInteraction(Layer):
         (num_atoms, atom_dim), (batchsize, prot_dim), (num_atoms, ) = input_shape
         return tf.TensorShape((batchsize, 1))
 
+class ConcatBiInteraction(Layer):
+    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'glorot_uniform', **kwargs):
+        super(ConcatBiInteraction, self).__init__(**kwargs)
+        self.num_dense_layers = len(hidden_list)
+        self.activation = activation
+        self.initializer = initializer
+        self.dropout= dropout
+        self.interaction_layer = Dense(1, use_bias= True)
+        self.dense_layer_list = []
+        for i in range(self.num_dense_layers):
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
+        self.out_layer = Dense(1)
+
+    def call(self, inputs, training= None):
+        atom_embed, protSeq_embed, atom_splits = inputs
+
+        protSeq_len = protSeq_embed.shape[1] # protSeq inshape (batchsize, seqlen, embed_dim)
+        protSeq_embed_gather = tf.gather(protSeq_embed, atom_splits, axis= 0)
+        atom_embed_expand = tf.tile(tf.expand_dims(atom_embed, 1), [1, protSeq_len, 1]) # atom_embed (n_atom, d_atom) to ( (n_atom, protSeq_len, d_atom)
+        concat_embed = tf.concat([protSeq_embed_gather, atom_embed_expand], axis = -1) # no need to repeat?
+        W = self.interaction_layer(concat_embed)
+        W = tf.squeeze(W, axis= -1) # to reduce the last 1 dimension
+
+        Wc = tf.exp(tf.reduce_max(W, axis= -1 ,keepdims= True))
+        Sc = tf.gather(tf.segment_sum(Wc, atom_splits), atom_splits, axis= 0)
+        aa = Wc / Sc
+
+        atom_embed = tf.segment_sum(aa * atom_embed, atom_splits)
+
+        Wp = tf.segment_max(W, atom_splits)
+        ap = tf.nn.softmax(Wp, axis= -1)
+
+        # print(ap.shape, protSeq_embed.shape)
+        prot_embed = tf.einsum('ij, ijk->ik', ap, protSeq_embed)
+
+        concat_embed = tf.concat([atom_embed, prot_embed], axis = -1)
+        for layer in self.dense_layer_list:
+            concat_embed = layer(concat_embed)
+            # concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
+            # concat_embed = Dropout(self.dropout)(concat_embed, training= training)
+        return self.out_layer(concat_embed)
+
+    def compute_output_shape(self, input_shape):
+        (num_atoms, atom_dim), (batchsize, prot_dim), (num_atoms, ) = input_shape
+        return tf.TensorShape((batchsize, 1))
 
 class ConcatMlp(Layer):
     def __init__(self, hidden_list= [512, 1024], activation ='relu', initializer ='he_uniform', **kwargs):

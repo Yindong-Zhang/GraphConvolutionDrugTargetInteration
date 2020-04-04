@@ -8,7 +8,7 @@ def cindex_score(y_true, y_pred):
     g = tf.cast(g == 0.0, tf.float32) * 0.5 + tf.cast(g > 0.0, tf.float32)
 
     f = tf.subtract(tf.expand_dims(y_true, -1), y_true) > 0.0
-    f = tf.matrix_band_part(tf.cast(f, tf.float32), -1, 0)
+    f = tf.matrix_band_part(tf.cast(f, tf.float32), -1, 0) # 取 下三角矩阵
 
     g = tf.reduce_sum(tf.multiply(g, f))
     f = tf.reduce_sum(f)
@@ -39,6 +39,7 @@ def get_aupr(Y, P):
 
 def get_cindex(Y, P):
     # Y 与 P 一一对应，
+    # Y 似乎应该排序
     summ = 0
     pair = 0
     

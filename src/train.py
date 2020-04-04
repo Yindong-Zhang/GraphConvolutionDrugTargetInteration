@@ -4,7 +4,7 @@ from shutil import copy
 import numpy as np
 from src.weakSupervised.weakSupervised import pretrain
 from src.weakSupervised.data_utils import load_fn
-from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction, ConcatMlp, EmbeddingLayer, Concatenate
+from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction, ConcatMlp, EmbeddingLayer, Concatenate, ConcatBiInteraction
 from src.graphLayer import WeaveGather
 from src.data_utils import DataSet, PROTCHARSIZE
 from src.utils import make_config_str, PROJPATH
@@ -28,10 +28,10 @@ parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [512, 512],
 parser.add_argument("--graph_features", type= int, default= 1024, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
-parser.add_argument("--mol_embed_size", type= int, default= 32, help = 'molecular atom and bond feature embed size')
-parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [512, 1024], help = "hidden dimension list in BiInteraction model.")
+parser.add_argument("--mol_embed_size", type= int, default= -1, help = 'molecular atom and bond feature embed size')
+parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [1024, 512], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
-parser.add_argument("--epoches", type= int, default= 100, help= "epoches during training..")
+parser.add_argument("--epoches", type= int, default= 1, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
@@ -40,7 +40,7 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-cv5/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp/" \
          % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
@@ -106,7 +106,7 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
+affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
                                     dropout= args.dropout,
                                     activation= 'tanh',
                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])

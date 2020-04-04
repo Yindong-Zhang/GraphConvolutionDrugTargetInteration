@@ -127,7 +127,6 @@ class WeaveLayer(tf.keras.layers.Layer):
                  n_hidden_PA=50,
                  n_hidden_AP=50,
                  n_hidden_PP=50,
-                 update_pair=True,
                  init='glorot_uniform',
                  activation='relu',
                  **kwargs):
@@ -155,7 +154,6 @@ class WeaveLayer(tf.keras.layers.Layer):
         super(WeaveLayer, self).__init__(**kwargs)
         self.init = init  # Set weight initialization
         self.activation = activation  # Get activations
-        self.update_pair = update_pair  # last weave layer does not need to update
         self.dim_aa = n_hidden_AA
         self.dim_pa = n_hidden_PA
         self.dim_ap = n_hidden_AP
@@ -198,19 +196,17 @@ class WeaveLayer(tf.keras.layers.Layer):
         # A = tf.matmul(tf.concat([AA, PA], 1), self.W_A) + self.b_A
         # A = activation(A)
 
-        if self.update_pair:
-            AP_ij = self.linear_ap(tf.reshape(
-                tf.gather(atom_features, atom_to_pair),
-                [-1, 2 * self.n_atom_input_feat]))
 
-            AP_ji = self.linear_ap(tf.reshape(tf.gather(atom_features, tf.reverse(atom_to_pair, [1])),
-                                              [-1, 2 * self.n_atom_input_feat]))
+        AP_ij = self.linear_ap(tf.reshape(
+            tf.gather(atom_features, atom_to_pair),
+            [-1, 2 * self.n_atom_input_feat]))
 
-            PP = self.linear_pp(pair_features)
+        AP_ji = self.linear_ap(tf.reshape(tf.gather(atom_features, tf.reverse(atom_to_pair, [1])),
+                                          [-1, 2 * self.n_atom_input_feat]))
 
-            P = self.linear_po(tf.concat([AP_ij + AP_ji, PP], -1))
-        else:
-            P = pair_features
+        PP = self.linear_pp(pair_features)
+
+        P = self.linear_po(tf.concat([AP_ij + AP_ji, PP], -1))
 
         return [A, P]
 

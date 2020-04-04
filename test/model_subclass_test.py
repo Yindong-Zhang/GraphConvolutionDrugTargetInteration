@@ -1,4 +1,4 @@
-from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction
+from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction, ConcatBiInteraction
 import tensorflow as tf
 from tensorflow.python.keras.layers import Dense
 from src.featurizer import WeaveFeaturizer
