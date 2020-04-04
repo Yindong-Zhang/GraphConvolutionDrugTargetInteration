@@ -94,18 +94,19 @@ class ProtSeqEmbedding(Model):
         return tf.TensorShape([batchsize, protSeqLen, embed_dim])
 
 class EmbeddingLayer(Layer):
-    def __init__(self, size_ls, embed_size, **kwargs): # kwargs, 申明可变参数
+    def __init__(self, size_ls, embed_size_ls, **kwargs): # kwargs, 申明可变参数
         """
 
         :param size_dict: a ls indicate [feat_dim, ]
         """
         super(EmbeddingLayer, self).__init__(**kwargs)
+        assert len(size_ls) == len(embed_size_ls), "Inconsistent Arguments"
         self.dim_ls = size_ls
-        self.embed_size= embed_size
+        self.embed_size_ls= embed_size_ls
         self.embed_layers = []
         self.num_feat = len(size_ls)
-        for size in self.dim_ls:
-            self.embed_layers.append(Embedding(size, self.embed_size))
+        for i in range(self.num_feat):
+            self.embed_layers.append(Embedding(size_ls[i], embed_size_ls[i]))
 
     def call(self, inputs, **kwargs):
         """
@@ -123,7 +124,7 @@ class EmbeddingLayer(Layer):
 
     def compute_output_shape(self, input_shape):
         (b, ) = input_shape[0]
-        out_dim = self.num_feat * self.embed_size
+        out_dim = sum(self.embed_size_ls)
         return tf.TensorShape([b, out_dim])
 
 

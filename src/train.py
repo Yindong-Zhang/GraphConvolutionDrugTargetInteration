@@ -23,15 +23,15 @@ parser.add_argument("--dataset", type= str, default= "davis", help = "dataset to
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 64, help = "batchsize during training.")
-parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [256, 512], help= "atom hidden dimension list in graph embedding model.")
-parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [256, 512], help = "pair hidden dimension list in graph embedding model.")
-parser.add_argument("--graph_features", type= int, default= 512, help= "graph features dimension")
+parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [512, 512], help= "atom hidden dimension list in graph embedding model.")
+parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [512, 512], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--graph_features", type= int, default= 1024, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--mol_embed_size", type= int, default= 32, help = 'molecular atom and bond feature embed size')
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [512, 1024], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
-parser.add_argument("--epoches", type= int, default= 2, help= "epoches during training..")
+parser.add_argument("--epoches", type= int, default= 100, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
@@ -40,8 +40,8 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-batchsize~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-cv5/" \
-         % (args.dataset, args.pretrain, args.lr, args.batchsize, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
+prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-cv5/" \
+         % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
 print(prefix)
@@ -67,8 +67,6 @@ dataset = DataSet(fpath=filepath,
 fold5_train, test_inds = dataset.load_5fold_split()
 test_inds = test_inds
 
-atom_dim = len(mol_featurizer.atom_cat_dim) * args.mol_embed_size
-pair_dim = len(mol_featurizer.bond_cat_dim) * args.mol_embed_size
 props_dim = 100
 
 
@@ -83,13 +81,17 @@ mol_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair,
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
 
-atom_feat = EmbeddingLayer(mol_featurizer.atom_cat_dim, args.mol_embed_size)(atom_features)
+atom_embed_ls =  [512] + [128, ] * 6
+atom_dim = sum(atom_embed_ls)
+atom_feat = EmbeddingLayer(mol_featurizer.atom_cat_dim, atom_embed_ls)(atom_features)
 
-pair_feat = EmbeddingLayer(mol_featurizer.bond_cat_dim, args.mol_embed_size)(pair_features)
+bond_embed_ls = [512, ] + [256, ] * 2
+bond_dim = sum(bond_embed_ls)
+pair_feat = EmbeddingLayer(mol_featurizer.bond_cat_dim, bond_embed_ls)(pair_features)
 mol_feat = [atom_feat, pair_feat, pair_split, atom_split, atom_to_pair, num_atoms]
 
 atom_embedding = GraphEmbedding(atom_features= atom_dim,
-                                pair_features= pair_dim,
+                                pair_features= bond_dim,
                                 atom_hidden_list= args.atom_hidden,
                                 pair_hidden_list= args.pair_hidden,
                                 graph_feat= args.graph_features,

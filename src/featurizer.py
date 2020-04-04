@@ -72,8 +72,9 @@ def safe_index(l, e):
 
 
 possible_atom_list = [
-    'C', 'N', 'O', 'S', 'F', 'P', 'Cl', 'Mg', 'Na', 'Br', 'Fe', 'Ca', 'Cu',
-    'Mc', 'Pd', 'Pb', 'K', 'I', 'Al', 'Ni', 'Mn' # 21
+    'C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K',
+    'Tl', 'Yb', 'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',  # H?
+    'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb', 'Unknown'
 ]
 possible_numH_list = [0, 1, 2, 3, 4]
 possible_valence_list = [0, 1, 2, 3, 4, 5, 6]
@@ -86,6 +87,7 @@ possible_hybridization_list = [
 possible_number_radical_e_list = [0, 1, 2]
 possible_isAromatic_list = [0, 1] #atom.GetIsAromatic()
 possible_chirality_list = ['R', 'S']
+possible_degree_list = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] # TODO: use degree features ?
 
 atom_reference_lists = [
     possible_atom_list, possible_numH_list, possible_valence_list,
@@ -96,16 +98,17 @@ atom_reference_lists = [
 intervals = get_intervals(atom_reference_lists)
 
 
-def get_atom_feature_list(atom):
-    features = 7 * [0]
-    features[0] = safe_index(possible_atom_list, atom.GetSymbol())
-    features[1] = safe_index(possible_numH_list, atom.GetTotalNumHs())
-    features[2] = safe_index(possible_valence_list, atom.GetImplicitValence())
-    features[3] = safe_index(possible_formal_charge_list, atom.GetFormalCharge())
-    features[4] = safe_index(possible_number_radical_e_list,
-                             atom.GetNumRadicalElectrons())
-    features[5] = safe_index(possible_hybridization_list, atom.GetHybridization())
-    features[6] = safe_index(possible_isAromatic_list, atom.GetIsAromatic())
+def get_atom_feature_list(atom, onlyType = False):
+    features = []
+    features.append(safe_index(possible_atom_list, atom.GetSymbol()))
+    if not onlyType:
+        features.append(safe_index(possible_numH_list, atom.GetTotalNumHs()))
+        features.append(safe_index(possible_valence_list, atom.GetImplicitValence()))
+        features.append(safe_index(possible_formal_charge_list, atom.GetFormalCharge()))
+        features.append(safe_index(possible_number_radical_e_list,
+                                 atom.GetNumRadicalElectrons()))
+        features.append(safe_index(possible_hybridization_list, atom.GetHybridization()))
+        features.append(safe_index(possible_isAromatic_list, atom.GetIsAromatic()))
     return features
 
 
@@ -262,10 +265,12 @@ def find_distance(a1, num_atoms, canon_adj_list, max_distance=7):
 class WeaveFeaturizer(Featurizer):
     name = ['weave_mol']
 
-    def __init__(self, graph_distance=False, explicit_H=False,
+    def __init__(self, only_atom_type = False,  graph_distance=False, explicit_H=False,
                  use_chirality=False):
         # Distance is either graph distance(True) or Euclidean distance(False,
         # only support datasets providing Cartesian coordinates)
+        self.only_atom_type = only_atom_type
+
         self.graph_distance = graph_distance
         # Set dtype
         self.dtype = object
@@ -278,7 +283,7 @@ class WeaveFeaturizer(Featurizer):
         """Encodes mol as a WeaveMol object."""
         # Atom features
         idx_nodes = [(a.GetIdx(),
-                      get_atom_feature_list(a))
+                      get_atom_feature_list(a, onlyType= self.only_atom_type))
                      for a in mol.GetAtoms()]
         idx_nodes.sort()  # Sort by ind to ensure same order as rd_kit
         idx, nodes = list(zip(*idx_nodes))
@@ -327,7 +332,10 @@ class WeaveFeaturizer(Featurizer):
 
     @property
     def atom_cat_dim(self):
-        return [len(feat) + 1 for feat in atom_reference_lists]
+        if self.only_atom_type:
+            return [len(atom_reference_lists[0]) + 1]
+        else:
+            return [len(feat) + 1 for feat in atom_reference_lists]
 
     @property
     def bond_cat_dim(self):
