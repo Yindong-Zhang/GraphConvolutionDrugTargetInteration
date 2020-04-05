@@ -13,7 +13,7 @@ from tensorflow.python.keras.layers import Input, Dense
 from tensorflow.python.keras import Model
 from itertools import chain
 import tensorflow as tf
-from src.emetrics import cindex_score
+from src.emetrics import cindex_score, ci
 from src.utils import log
 from pprint import pprint
 from functools import partial
@@ -30,7 +30,7 @@ parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 12
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--mol_embed_size", type= int, default= -1, help = 'molecular atom and bond feature embed size')
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [1024, 512], help = "hidden dimension list in BiInteraction model.")
-parser.add_argument("--dropout", type= float, default= 0.1, help= "dropout rate in biInteraction model.")
+parser.add_argument("--dropout", type= float, default= 0.2, help= "dropout rate in biInteraction model.")
 parser.add_argument("--epoches", type= int, default= 1, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
@@ -40,12 +40,11 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp-mdpo/" \
          % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
 print(prefix)
-# configStr = "test"
 chkpt_dir = os.path.join(PROJPATH, "checkpoint/", prefix)
 log_dir = os.path.join(PROJPATH, "log/", prefix)
 if not os.path.exists(chkpt_dir):
@@ -96,6 +95,7 @@ atom_embedding = GraphEmbedding(atom_features= atom_dim,
                                 pair_hidden_list= args.pair_hidden,
                                 graph_feat= args.graph_features,
                                 num_mols= args.batchsize,
+                                dropout= args.dropout,
                                 name= 'graph_embedding'
                                 )(mol_feat)
 mol_embedding = WeaveGather(args.batchsize, atom_dim= args.graph_features, name='atom_gather')([atom_embedding, atom_split])
@@ -106,11 +106,11 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
-                                    dropout= args.dropout,
-                                    activation= 'tanh',
-                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
-# affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
+# affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
+#                                     dropout= args.dropout,
+#                                     activation= 'tanh',
+#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
 # DrugPropertyModel = Model(inputs= mol_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [mol_input, protSeq],
                 outputs= affinity,
@@ -140,7 +140,7 @@ def loop_dataset(indices, optimizer = None):
     count = len(indices) // args.batchsize
     isTraining = optimizer is not None
     for it, (batch_mol, batch_protSeq, labels) in enumerate(
-            dataset.iter_batch(args.batchsize, indices, shuffle=False)):
+            dataset.iter_batch(args.batchsize, indices, shuffle=True)):
         # print(it)
         # print(batch_mol[0])
         with tf.GradientTape() as tape:
@@ -148,6 +148,8 @@ def loop_dataset(indices, optimizer = None):
             # print(logit.numpy())
             loss_tensor = tf.losses.mean_squared_error(labels, logit)
             ci_tensor = cindex_score(labels, logit)
+            # ci2 = ci(labels.reshape((-1)), logit.numpy().reshape((-1, )))
+            # print(ci_tensor.numpy(), ci2)
 
         loss_value = loss_tensor.numpy().mean()
         ci_value = ci_tensor.numpy()

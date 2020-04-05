@@ -8,13 +8,37 @@ def cindex_score(y_true, y_pred):
     g = tf.cast(g == 0.0, tf.float32) * 0.5 + tf.cast(g > 0.0, tf.float32)
 
     f = tf.subtract(tf.expand_dims(y_true, -1), y_true) > 0.0
-    f = tf.matrix_band_part(tf.cast(f, tf.float32), -1, 0) # 取 下三角矩阵
+    # f = tf.matrix_band_part(tf.cast(f, tf.float32), -1, 0) # 取 下三角矩阵，不取下三角也可以，实验证明两者等价
+    f = tf.cast(f, tf.float32)
 
     g = tf.reduce_sum(tf.multiply(g, f))
     f = tf.reduce_sum(f)
+    return tf.where(tf.equal(f, 0), 0.0, g/f)
 
-    return tf.where(tf.equal(g, 0), 0.0, g/f)
-
+def ci(y,f):
+    ind = np.argsort(y,)
+    y = y[ind]
+    f = f[ind]
+    i = len(y)-1
+    j = i-1
+    z = 0.0
+    S = 0.0
+    while i > 0:
+        while j >= 0:
+            if y[i] > y[j]:
+                z = z+1
+                u = f[i] - f[j]
+                if u > 0:
+                    S = S + 1
+                elif u == 0:
+                    S = S + 0.5
+            j = j - 1
+        i = i - 1
+        j = i-1
+    if z == 0:
+        return 0
+    else:
+        return S / z
 
 def get_aupr(Y, P):
     if hasattr(Y, 'A'): Y = Y.A
@@ -35,26 +59,6 @@ def get_aupr(Y, P):
     f.close()
     return aucpr
 
-
-
-def get_cindex(Y, P):
-    # Y 与 P 一一对应，
-    # Y 似乎应该排序
-    summ = 0
-    pair = 0
-    
-    for i in range(1, len(Y)):
-        for j in range(0, i):
-            if i is not j:
-                if(Y[i] > Y[j]):
-                    pair +=1
-                    summ +=  1* (P[i] > P[j]) + 0.5 * (P[i] == P[j])
-        
-            
-    if pair is not 0:
-        return summ/pair
-    else:
-        return 0
 
 
 def r_squared_error(y_obs,y_pred):

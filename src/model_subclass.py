@@ -7,7 +7,7 @@ from src.graphLayer import WeaveLayer, WeaveGather, MolecularConvolutionLayer
 """ model subclass is more suitable for tensorflow 2.0
 """
 class GraphEmbedding(Model):
-    def __init__(self, atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_feat, num_mols, *args, **kwargs):
+    def __init__(self, atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_feat, num_mols, dropout = 0.1, *args, **kwargs):
         super(GraphEmbedding, self).__init__(*args, **kwargs)
         self.atom_hidden_list = atom_hidden_list
         self.pair_hidden_list = pair_hidden_list
@@ -36,6 +36,7 @@ class GraphEmbedding(Model):
             self.GCLayer_list.append(
                 WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
 
+        self.dropout_layer = Dropout(dropout)
         self.dense = Dense(self.graph_features, activation='tanh')
 
     def call(self, inputs, training= None):
@@ -48,6 +49,8 @@ class GraphEmbedding(Model):
         for i in range(self.num_GCNLayers):
             atom_hidden = tf.concat(atom_hidden_list, axis= -1)
             pair_hidden = tf.concat(pair_hidden_list, axis= -1)
+            atom_hidden = self.dropout_layer(atom_hidden, training = training)
+            pair_hidden = self.dropout_layer(pair_hidden, training= training)
             atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair, num_atoms])
             atom_hidden_list.append(atom_hidden)
             pair_hidden_list.append(pair_hidden)
@@ -140,6 +143,7 @@ class BiInteraction(Layer):
         for i in range(self.num_dense_layers):
             self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
         self.out_layer = Dense(1)
+        self.dropout_layer = Dropout(self.dropout)
 
     def build(self, input_shape):
         atom_hidden_shape, prot_hidden_shape, atom_splits_shape = input_shape
@@ -169,7 +173,7 @@ class BiInteraction(Layer):
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
             # concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
-            # concat_embed = Dropout(self.dropout)(concat_embed, training= training)
+            concat_embed = self.dropout_layer(concat_embed, training= training) # reuse is a problem ? ok for dropout layer but not for batch normalization layer?
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
@@ -188,6 +192,7 @@ class ConcatBiInteraction(Layer):
         for i in range(self.num_dense_layers):
             self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
         self.out_layer = Dense(1)
+        self.dropout_layer = Dropout(self.dropout)
 
     def call(self, inputs, training= None):
         atom_embed, protSeq_embed, atom_splits = inputs
@@ -215,7 +220,8 @@ class ConcatBiInteraction(Layer):
         for layer in self.dense_layer_list:
             concat_embed = layer(concat_embed)
             # concat_embed = BatchNormalization(axis = -1)(concat_embed, training= training)
-            # concat_embed = Dropout(self.dropout)(concat_embed, training= training)
+            concat_embed = self.dropout_layer(concat_embed, training= training)
+
         return self.out_layer(concat_embed)
 
     def compute_output_shape(self, input_shape):
@@ -223,9 +229,11 @@ class ConcatBiInteraction(Layer):
         return tf.TensorShape((batchsize, 1))
 
 class ConcatMlp(Layer):
-    def __init__(self, hidden_list= [512, 1024], activation ='relu', initializer ='he_uniform', **kwargs):
+    def __init__(self, hidden_list= [512, 1024], dropout= 0.1, activation ='relu', initializer ='he_uniform', **kwargs):
         super(ConcatMlp, self).__init__(**kwargs)
+
         self.hidden_size= hidden_list
+        self.dropout = dropout
         self.activation = activation
         self.initializer = initializer
 
@@ -234,6 +242,7 @@ class ConcatMlp(Layer):
         for hidden in self.hidden_size:
             self.hidden_layers.append(Dense(hidden, activation= self.activation, kernel_initializer= self.initializer))
         self.output_layer = Dense(1)
+        self.dropout_layer = Dropout(self.dropout)
 
     def call(self, inputs, training= None):
         """
@@ -248,6 +257,8 @@ class ConcatMlp(Layer):
         for layer in self.hidden_layers:
             hidden = layer(hidden)
             # hidden = BatchNormalization(axis= -1)(hidden, training = training)
+            hidden = self.dropout_layer(hidden, training= training)
+
         output = self.output_layer(hidden)
         return output
 
