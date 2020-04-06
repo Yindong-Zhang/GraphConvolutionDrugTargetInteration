@@ -72,9 +72,8 @@ def safe_index(l, e):
 
 
 possible_atom_list = [
-    'C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca', 'Fe', 'As', 'Al', 'I', 'B', 'V', 'K',
-    'Tl', 'Yb', 'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H',  # H?
-    'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb', 'Unknown'
+    'C', 'N', 'O', 'S', 'F', 'P', 'Cl', 'Mg', 'Na', 'Br', 'Fe', 'Ca', 'Cu',
+    'Mc', 'Pd', 'Pb', 'K', 'I', 'Al', 'Ni', 'Mn', 'Unknown', # 事实上要不了这么多
 ]
 possible_numH_list = [0, 1, 2, 3, 4]
 possible_valence_list = [0, 1, 2, 3, 4, 5, 6]
@@ -151,9 +150,8 @@ def atom_features_onehot(atom,
         from rdkit import Chem
         results = one_of_k_encoding_unk(
             atom.GetSymbol(),
-            ['C', 'N', 'O', 'S', 'F', 'Si', 'P', 'Cl', 'Br', 'Mg', 'Na', 'Ca',  'Fe', 'As', 'Al', 'I', 'B', 'V', 'K',
-                'Tl', 'Yb',  'Sb', 'Sn', 'Ag', 'Pd', 'Co', 'Se', 'Ti', 'Zn', 'H', # H?
-                'Li', 'Ge', 'Cu', 'Au', 'Ni', 'Cd', 'In', 'Mn', 'Zr', 'Cr', 'Pt', 'Hg', 'Pb', 'Unknown'
+            ['C', 'N', 'O', 'S', 'F', 'P', 'Cl', 'Mg', 'Na', 'Br', 'Fe', 'Ca', 'Cu',
+                    'Mc', 'Pd', 'Pb', 'K', 'I', 'Al', 'Ni', 'Mn', 'Unknown'
             ]) + one_of_k_encoding(atom.GetDegree(),
                                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) + \
                   one_of_k_encoding_unk(atom.GetImplicitValence(), [0, 1, 2, 3, 4, 5, 6]) + \
@@ -285,6 +283,7 @@ class WeaveFeaturizer(Featurizer):
         idx_nodes = [(a.GetIdx(),
                       get_atom_feature_list(a, onlyType= self.only_atom_type))
                      for a in mol.GetAtoms()]
+
         idx_nodes.sort()  # Sort by ind to ensure same order as rd_kit
         idx, nodes = list(zip(*idx_nodes))
 

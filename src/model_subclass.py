@@ -81,7 +81,7 @@ class ProtSeqEmbedding(Model):
                                                      kernel_size= filter_length_list[i],
                                                      activation='tanh',
                                                      padding='same',
-                                                     strides=1))
+                                                     strides= 1))
 
     def call(self, inputs):
         seq_embed = self.embed(inputs)
@@ -191,6 +191,7 @@ class ConcatBiInteraction(Layer):
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
             self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
+
         self.out_layer = Dense(1)
         self.dropout_layer = Dropout(self.dropout)
 

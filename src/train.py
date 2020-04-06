@@ -80,11 +80,11 @@ mol_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair,
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
 
-atom_embed_ls =  [512] + [128, ] * 6
+atom_embed_ls =  [256] + [64, ] * 6
 atom_dim = sum(atom_embed_ls)
 atom_feat = EmbeddingLayer(mol_featurizer.atom_cat_dim, atom_embed_ls)(atom_features)
 
-bond_embed_ls = [512, ] + [256, ] * 2
+bond_embed_ls = [256, ] + [128, ] * 2
 bond_dim = sum(bond_embed_ls)
 pair_feat = EmbeddingLayer(mol_featurizer.bond_cat_dim, bond_embed_ls)(pair_features)
 mol_feat = [atom_feat, pair_feat, pair_split, atom_split, atom_to_pair, num_atoms]
@@ -106,11 +106,11 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-# affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
-#                                     dropout= args.dropout,
-#                                     activation= 'tanh',
-#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
-affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
+affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
+                                    dropout= args.dropout,
+                                    activation= 'tanh',
+                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+# affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
 # DrugPropertyModel = Model(inputs= mol_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [mol_input, protSeq],
                 outputs= affinity,

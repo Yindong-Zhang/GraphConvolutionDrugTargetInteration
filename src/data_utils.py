@@ -229,7 +229,8 @@ class DataSet():
 
         rd_mols = [MolFromSmiles(smiles) for smiles in ligands.values()]
         mol_list = self.featurizer(rd_mols)
-
+        # atom_set = set([a.GetSymbol() for mol in rd_mols for a in mol.GetAtoms()])  # 检查原子类别
+        # print(atom_set)
         prot_list = [label_sequence(protein, self.SEQLEN, self.charseqset) for protein in proteins.values()]
 
         return mol_list, prot_list, Y
@@ -266,18 +267,17 @@ class DataSet():
             yield batch_mol_merged, batch_prot, labels
 
 if __name__ == '__main__':
-    print(projPath)
-    # filepath = '../data/kiba/'
-    # weave_featurizer = WeaveFeaturizer()
-    # dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
-    #                   setting_no= 1,  ##BUNU ARGS A EKLE
-    #                   seqlen= 1000,
-    #                   featurizer= weave_featurizer,
-    #                   is_log= True)
-    # fold5_train, test_inds = dataset.load_5fold_split()
-    # test_inds = np.array(test_inds)
-    # for it in range(2):
-    #     for i, t in enumerate(dataset.iter_batch(32, test_inds, shuffle= True, )):
-    #         print(it, i)
-    #         if i > 2:
-    #             break
+    # print(projPath)
+    filepath = '../data/davis/'
+    weave_featurizer = WeaveFeaturizer()
+    dataset = DataSet(fpath= filepath,  ### BUNU ARGS DA GUNCELLE
+                      seqlen= 1000,
+                      featurizer= weave_featurizer,
+                      is_log= True)
+    fold5_train, test_inds = dataset.load_5fold_split()
+    test_inds = np.array(test_inds)
+    for it in range(2):
+        for i, t in enumerate(dataset.iter_batch(32, test_inds, shuffle= True, )):
+            print(it, i)
+            if i > 100:
+                break
