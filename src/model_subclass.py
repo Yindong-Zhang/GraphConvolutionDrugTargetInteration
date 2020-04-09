@@ -1,18 +1,22 @@
 import tensorflow as tf
 from tensorflow.python.keras import Model
 from tensorflow.python.keras.layers import Dense, BatchNormalization, Embedding, Conv1D, GlobalMaxPooling1D, Concatenate, Dropout, Layer
+from tensorflow.python.keras.regularizers import l2
 from tensorflow.python.keras import initializers
 from src.graphLayer import WeaveLayer, WeaveGather, MolecularConvolutionLayer
 
 """ model subclass is more suitable for tensorflow 2.0
 """
 class GraphEmbedding(Model):
-    def __init__(self, atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_feat, num_mols, dropout = 0.1, *args, **kwargs):
+    def __init__(self, atom_features, pair_features, atom_hidden_list, pair_hidden_list, graph_feat, num_mols,
+                 dropout = 0.1, weight_decay = 1E05, residual_connection= True, *args, **kwargs):
         super(GraphEmbedding, self).__init__(*args, **kwargs)
         self.atom_hidden_list = atom_hidden_list
         self.pair_hidden_list = pair_hidden_list
+        self.residual_connection = residual_connection
         self.graph_features = graph_feat
         self.num_mols = num_mols
+        self.weight_decay = weight_decay
         assert len(atom_hidden_list) == len(pair_hidden_list), "length of atom hidden list should equal to length of pair hidden list."
         self.num_GCNLayers = len(atom_hidden_list)
 
@@ -25,36 +29,44 @@ class GraphEmbedding(Model):
         pair_dim_sum = pair_features
         self.atom_hidden_input_list = [atom_dim_sum, ]
         self.pair_hidden_input_list = [pair_dim_sum, ]
-        for i in range(self.num_GCNLayers):
-            atom_dim_sum = atom_dim_sum + self.atom_hidden_list[i]
-            pair_dim_sum = pair_dim_sum + self.pair_hidden_list[i]
-            self.atom_hidden_input_list.append(atom_dim_sum)
-            self.pair_hidden_input_list.append(pair_dim_sum)
+        if self.residual_connection:
+            for i in range(self.num_GCNLayers):
+                atom_dim_sum = atom_dim_sum + self.atom_hidden_list[i]
+                pair_dim_sum = pair_dim_sum + self.pair_hidden_list[i]
+                self.atom_hidden_input_list.append(atom_dim_sum)
+                self.pair_hidden_input_list.append(pair_dim_sum)
+        else:
+            for i in range(self.num_GCNLayers - 1):
+                self.atom_hidden_input_list.append(self.atom_hidden_list[i])
+                self.pair_hidden_input_list.append(self.pair_hidden_list[i])
         for i in range(self.num_GCNLayers):
             # self.GCLayer_list.append(
             #     MolecularConvolutionLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], self.atom_hidden_list[i]))
             self.GCLayer_list.append(
-                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], activation= 'tanh'))
+                WeaveLayer(self.atom_hidden_input_list[i], self.pair_hidden_input_list[i], self.atom_hidden_list[i], self.pair_hidden_list[i], weight_decay = self.weight_decay, activation= 'tanh'))
 
         self.dropout_layer = Dropout(dropout)
-        self.dense = Dense(self.graph_features, activation='tanh')
+        self.dense = Dense(self.graph_features, activation='tanh', kernel_regularizer= l2(self.weight_decay))
 
     def call(self, inputs, training= None):
         atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms = inputs
         atom_hidden_list = []
         pair_hidden_list = []
         atom_hidden, pair_hidden = atom_features, pair_features
+
         atom_hidden_list.append(atom_hidden)
         pair_hidden_list.append(pair_hidden)
         for i in range(self.num_GCNLayers):
-            atom_hidden = tf.concat(atom_hidden_list, axis= -1)
-            pair_hidden = tf.concat(pair_hidden_list, axis= -1)
+            if self.residual_connection:
+                atom_hidden = tf.concat(atom_hidden_list, axis= -1)
+                pair_hidden = tf.concat(pair_hidden_list, axis= -1)
             atom_hidden = self.dropout_layer(atom_hidden, training = training)
             pair_hidden = self.dropout_layer(pair_hidden, training= training)
             atom_hidden, pair_hidden = self.GCLayer_list[i]([atom_hidden, pair_hidden, pair_split, atom_to_pair, num_atoms])
             atom_hidden_list.append(atom_hidden)
             pair_hidden_list.append(pair_hidden)
-        atom_hidden_out = tf.concat(atom_hidden_list, axis= -1)
+
+        atom_hidden_out = tf.concat(atom_hidden_list, axis= -1) # use dense connection at the last dense layer
         # print(" training: %s" %(training, ))
         atom_hidden = self.dense(atom_hidden_out)
         # print(atom_hidden[:5])
@@ -133,7 +145,7 @@ class EmbeddingLayer(Layer):
 
 
 class BiInteraction(Layer):
-    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'glorot_uniform', **kwargs):
+    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'he_uniform', **kwargs):
         super(BiInteraction, self).__init__(**kwargs)
         self.num_dense_layers = len(hidden_list)
         self.activation = activation
@@ -141,7 +153,7 @@ class BiInteraction(Layer):
         self.dropout= dropout
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
-            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, kernel_initializer= self.initializer))
         self.out_layer = Dense(1)
         self.dropout_layer = Dropout(self.dropout)
 
@@ -162,10 +174,11 @@ class BiInteraction(Layer):
         Sc = tf.gather(tf.segment_sum(Wc, atom_splits), atom_splits, axis= 0)
         aa = Wc / Sc
 
-        atom_embed = tf.segment_sum(aa * atom_embed, atom_splits)
+        atom_embed = tf.segment_sum(tf.multiply(aa, atom_embed), atom_splits)
 
         Wp = tf.segment_max(W, atom_splits)
         ap = tf.nn.softmax(Wp, axis= -1)
+
 
         prot_embed = tf.einsum('ij, ijk->ik', ap, protSeq_embed)
 
@@ -181,16 +194,17 @@ class BiInteraction(Layer):
         return tf.TensorShape((batchsize, 1))
 
 class ConcatBiInteraction(Layer):
-    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'glorot_uniform', **kwargs):
+    def __init__(self, hidden_list, dropout, activation = "relu", initializer = 'he_uniform', **kwargs):
         super(ConcatBiInteraction, self).__init__(**kwargs)
         self.num_dense_layers = len(hidden_list)
         self.activation = activation
         self.initializer = initializer
         self.dropout= dropout
-        self.interaction_layer = Dense(1, use_bias= True)
+        self.att_layer_1 = Dense(256, use_bias= True, activation = 'tanh')
+        self.att_layer_2 = Dense(1)
         self.dense_layer_list = []
         for i in range(self.num_dense_layers):
-            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, use_bias= False))
+            self.dense_layer_list.append(Dense(hidden_list[i], activation= activation, kernel_initializer= self.initializer))
 
         self.out_layer = Dense(1)
         self.dropout_layer = Dropout(self.dropout)
@@ -201,8 +215,10 @@ class ConcatBiInteraction(Layer):
         protSeq_len = protSeq_embed.shape[1] # protSeq inshape (batchsize, seqlen, embed_dim)
         protSeq_embed_gather = tf.gather(protSeq_embed, atom_splits, axis= 0)
         atom_embed_expand = tf.tile(tf.expand_dims(atom_embed, 1), [1, protSeq_len, 1]) # atom_embed (n_atom, d_atom) to ( (n_atom, protSeq_len, d_atom)
-        concat_embed = tf.concat([protSeq_embed_gather, atom_embed_expand], axis = -1) # no need to repeat?
-        W = self.interaction_layer(concat_embed)
+        concat_embed = tf.concat([protSeq_embed_gather, atom_embed_expand], axis = -1)
+        concat_hidden = self.att_layer_1(concat_embed)
+        W = self.att_layer_2(concat_hidden)
+
         W = tf.squeeze(W, axis= -1) # to reduce the last 1 dimension
 
         Wc = tf.exp(tf.reduce_max(W, axis= -1 ,keepdims= True))
@@ -230,18 +246,20 @@ class ConcatBiInteraction(Layer):
         return tf.TensorShape((batchsize, 1))
 
 class ConcatMlp(Layer):
-    def __init__(self, hidden_list= [512, 1024], dropout= 0.1, activation ='relu', initializer ='he_uniform', **kwargs):
+    def __init__(self, hidden_list= [512, 1024], dropout= 0.1, weight_decay= 1E-5, activation ='relu', initializer ='he_uniform',  **kwargs):
         super(ConcatMlp, self).__init__(**kwargs)
 
         self.hidden_size= hidden_list
         self.dropout = dropout
+        self.weight_decay = weight_decay
         self.activation = activation
         self.initializer = initializer
 
     def build(self, input_shape):
         self.hidden_layers =[]
         for hidden in self.hidden_size:
-            self.hidden_layers.append(Dense(hidden, activation= self.activation, kernel_initializer= self.initializer))
+            self.hidden_layers.append(Dense(hidden, activation= self.activation, kernel_initializer= self.initializer,
+                                            kernel_regularizer= l2(self.weight_decay)))
         self.output_layer = Dense(1)
         self.dropout_layer = Dropout(self.dropout)
 

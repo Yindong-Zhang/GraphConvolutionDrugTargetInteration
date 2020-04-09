@@ -23,15 +23,17 @@ parser.add_argument("--dataset", type= str, default= "davis", help = "dataset to
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 64, help = "batchsize during training.")
-parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [512, 512], help= "atom hidden dimension list in graph embedding model.")
-parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [512, 512], help = "pair hidden dimension list in graph embedding model.")
-parser.add_argument("--graph_features", type= int, default= 1024, help= "graph features dimension")
+parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [128, 256, 512], help= "atom hidden dimension list in graph embedding model.")
+parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [128, 256, 512], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--graph_features", type= int, default= 512, help= "graph features dimension")
 parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--mol_embed_size", type= int, default= -1, help = 'molecular atom and bond feature embed size')
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [1024, 512], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.2, help= "dropout rate in biInteraction model.")
-parser.add_argument("--epoches", type= int, default= 1, help= "epoches during training..")
+parser.add_argument("--use_resConnection", action= 'store_true', dest= 'residual_connection', default= False, help= "whther use residual connection" )
+parser.add_argument("--weight_decay", type= float, default= 1E-5, help = "l2 loss weight decay")
+parser.add_argument("--epoches", type= int, default= 20, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
@@ -40,8 +42,8 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp-mdpo/" \
-         % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
+prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-weight_decay~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp/" \
+         % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, args.weight_decay, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
 print(prefix)
@@ -80,15 +82,16 @@ mol_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair,
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
 
-atom_embed_ls =  [256] + [64, ] * 6
+atom_embed_ls =  [128] + [64, ] * 6
 atom_dim = sum(atom_embed_ls)
 atom_feat = EmbeddingLayer(mol_featurizer.atom_cat_dim, atom_embed_ls)(atom_features)
 
-bond_embed_ls = [256, ] + [128, ] * 2
+bond_embed_ls = [128, ] + [64, ] * 2
 bond_dim = sum(bond_embed_ls)
 pair_feat = EmbeddingLayer(mol_featurizer.bond_cat_dim, bond_embed_ls)(pair_features)
 mol_feat = [atom_feat, pair_feat, pair_split, atom_split, atom_to_pair, num_atoms]
 
+# print(type(args.residual_connection))
 atom_embedding = GraphEmbedding(atom_features= atom_dim,
                                 pair_features= bond_dim,
                                 atom_hidden_list= args.atom_hidden,
@@ -96,6 +99,8 @@ atom_embedding = GraphEmbedding(atom_features= atom_dim,
                                 graph_feat= args.graph_features,
                                 num_mols= args.batchsize,
                                 dropout= args.dropout,
+                                weight_decay= args.weight_decay,
+                                residual_connection= args.residual_connection,
                                 name= 'graph_embedding'
                                 )(mol_feat)
 mol_embedding = WeaveGather(args.batchsize, atom_dim= args.graph_features, name='atom_gather')([atom_embedding, atom_split])
@@ -106,11 +111,11 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
-affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
-                                    dropout= args.dropout,
-                                    activation= 'tanh',
-                                    name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
-# affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh')([atom_embedding, protSeq_embedding, atom_split])
+# affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
+#                                     dropout= args.dropout,
+#                                     activation= 'tanh',
+#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh', weight_decay= args.weight_decay)([atom_embedding, protSeq_embedding, atom_split])
 # DrugPropertyModel = Model(inputs= mol_input, outputs= mol_property, name= 'drugPropertyModel')
 DTAModel= Model(inputs = [mol_input, protSeq],
                 outputs= affinity,
@@ -146,10 +151,11 @@ def loop_dataset(indices, optimizer = None):
         with tf.GradientTape() as tape:
             logit = DTAModel([batch_mol, batch_protSeq], training= isTraining)
             # print(logit.numpy())
-            loss_tensor = tf.losses.mean_squared_error(labels, logit)
+            main_loss = tf.losses.mean_squared_error(labels, logit)
+            reg_loss = tf.math.add_n(DTAModel.losses)
+            loss_tensor = main_loss + reg_loss
             ci_tensor = cindex_score(labels, logit)
-            # ci2 = ci(labels.reshape((-1)), logit.numpy().reshape((-1, )))
-            # print(ci_tensor.numpy(), ci2)
+            # print(main_loss.numpy(), reg_loss.numpy())
 
         loss_value = loss_tensor.numpy().mean()
         ci_value = ci_tensor.numpy()

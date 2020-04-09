@@ -1,6 +1,7 @@
 import tensorflow as tf
 from tensorflow.python.keras.layers import Dense, Dropout, BatchNormalization, LeakyReLU
 from tensorflow.python.keras import initializers, activations
+from tensorflow.python.keras.regularizers import l2
 
 class MolecularConvolutionLayer(tf.keras.layers.Layer):
     def __init__(self,
@@ -128,7 +129,8 @@ class WeaveLayer(tf.keras.layers.Layer):
                  n_hidden_AP=50,
                  n_hidden_PP=50,
                  init='glorot_uniform',
-                 activation='relu',
+                 activation='tanh',
+                 weight_decay = 1E-5,
                  **kwargs):
         """
         Parameters
@@ -154,6 +156,7 @@ class WeaveLayer(tf.keras.layers.Layer):
         super(WeaveLayer, self).__init__(**kwargs)
         self.init = init  # Set weight initialization
         self.activation = activation  # Get activations
+        self.weight_decay = weight_decay
         self.dim_aa = n_hidden_AA
         self.dim_pa = n_hidden_PA
         self.dim_ap = n_hidden_AP
@@ -173,12 +176,12 @@ class WeaveLayer(tf.keras.layers.Layer):
         :return:
         """
         super(WeaveLayer, self).build(input_shape)
-        self.linear_aa = Dense(self.n_hidden_A, activation=self.activation, use_bias=True, kernel_initializer=self.init)
-        self.linear_pa = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_ao = Dense(self.dim_ao, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_ap = Dense(self.dim_ap, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_pp = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init)
-        self.linear_po = Dense(self.dim_po, activation= self.activation, use_bias= True, kernel_initializer= self.init)
+        self.linear_aa = Dense(self.n_hidden_A, activation=self.activation, use_bias=True, kernel_initializer=self.init, kernel_regularizer= l2(self.weight_decay))
+        self.linear_pa = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init, kernel_regularizer= l2(self.weight_decay))
+        self.linear_ao = Dense(self.dim_ao, activation= self.activation, use_bias= True, kernel_initializer= self.init, kernel_regularizer=l2(self.weight_decay))
+        self.linear_ap = Dense(self.dim_ap, activation= self.activation, use_bias= True, kernel_initializer= self.init, kernel_regularizer= l2(self.weight_decay))
+        self.linear_pp = Dense(self.dim_pa, activation= self.activation, use_bias= True, kernel_initializer= self.init, kernel_regularizer=l2(self.weight_decay))
+        self.linear_po = Dense(self.dim_po, activation= self.activation, use_bias= True, kernel_initializer= self.init, kernel_regularizer= l2(self.weight_decay))
 
     def call(self, inputs):
         """Creates weave tensors.
