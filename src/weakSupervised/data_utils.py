@@ -11,7 +11,7 @@ from src.utils import PROJPATH
 from time import  time
 NUMPROCESS = 32
 
-def load_fn(dataset= 'kiba', batchsize = 32, shuffle = True, seed = 32):
+def load_fn(dataset= 'kiba_origin', batchsize = 32, shuffle = True, seed = 32):
     """
 
     :param dataDir:
@@ -21,7 +21,7 @@ def load_fn(dataset= 'kiba', batchsize = 32, shuffle = True, seed = 32):
     :return: iterable train val test dataset
     """
     dataDir = os.path.join(PROJPATH, 'data/kiba-origin/')
-    df = pd.read_csv(os.path.join(dataDir, "%s_props.csv" %(dataset, )))
+    df = pd.read_csv(os.path.join(dataDir, "%s_props.csv" %(dataset, ))) # 52077 moleculars, 100 dim property
     prop_array = df[[column for column in df.columns if column != 'smiles']].values
 
     standardizer = StandardScaler()

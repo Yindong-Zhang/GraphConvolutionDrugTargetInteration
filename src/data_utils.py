@@ -206,7 +206,7 @@ class DataSet():
         self.problem_type = setting_no
         self.featurizer = featurizer
         self.is_log = is_log
-        self.mol_list, self.protSeq_list, self.labels = self._parse_data(is_log)
+        self.mol_list, self.protSeq_list, self.protLen_list, self.labels = self._parse_data(is_log)
 
     def load_5fold_split(self): ### fpath should be the dataset folder /kiba/ or /davis/
         setting_no = self.problem_type
@@ -231,9 +231,10 @@ class DataSet():
         mol_list = self.featurizer(rd_mols)
         # atom_set = set([a.GetSymbol() for mol in rd_mols for a in mol.GetAtoms()])  # 检查原子类别
         # print(atom_set)
-        prot_list = [label_sequence(protein, self.SEQLEN, self.charseqset) for protein in proteins.values()]
+        prot_list = [label_sequence(protein, self.SEQLEN, self.charseqset) for protein in proteins.values()] # order matters
+        protlen_list = [min(len(protein), self.SEQLEN) for protein in proteins.values()]
 
-        return mol_list, prot_list, Y
+        return mol_list, prot_list, protlen_list, Y
 
     def iter_batch(self, batchsize, inds, shuffle = False, seed = 32):
         """
@@ -244,9 +245,10 @@ class DataSet():
         :param seed:
         :return:
         """
-        mol_list, prot_list, aff_mat = self.mol_list, self.protSeq_list, self.labels
+        mol_list, prot_list, protLen_list, aff_mat = self.mol_list, self.protSeq_list, self.protLen_list, self.labels
         mol_array = np.array(mol_list)
         prot_array = np.array(prot_list)
+        protLen_array = np.array(protLen_list)
         mol_inds, prot_inds = np.where(np.isnan(aff_mat) == False)
 
         num_samples = mol_inds.shape[0]
@@ -261,7 +263,10 @@ class DataSet():
             batch_mol_inds = mol_inds[batch_inds]
             batch_prot_inds = prot_inds[batch_inds]
             batch_mol = mol_array[batch_mol_inds]
-            batch_prot = prot_array[batch_prot_inds]
+            batch_protSeq = prot_array[batch_prot_inds]
+            batch_protLen = protLen_array[batch_prot_inds]
+            batch_prot = (batch_protSeq, batch_protLen)
+
             batch_mol_merged = gather_mol(batch_mol)
             labels = aff_mat[batch_mol_inds, batch_prot_inds].reshape(-1, 1)
             yield batch_mol_merged, batch_prot, labels

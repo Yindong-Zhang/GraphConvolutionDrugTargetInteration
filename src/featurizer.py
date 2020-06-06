@@ -25,6 +25,7 @@ class Featurizer(object):
             if mol is not None:
                 features.append(self._featurize(mol))
             else:
+                print("Warning: molecular is None")
                 features.append(np.array([]))
 
         features = np.asarray(features)
@@ -286,7 +287,7 @@ class WeaveFeaturizer(Featurizer):
 
         idx_nodes.sort()  # Sort by ind to ensure same order as rd_kit
         idx, nodes = list(zip(*idx_nodes))
-
+        # print(len(idx_nodes)) # 除了氢原子，核心原子一般有30到40个
         # Stack nodes into an array
         atom_input = np.array(nodes)
         # atom_input = [nodes[:, i] for i in range(nodes.shape[1])] # split array column wise

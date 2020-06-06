@@ -4,7 +4,7 @@ from shutil import copy
 import numpy as np
 from src.weakSupervised.weakSupervised import pretrain
 from src.weakSupervised.data_utils import load_fn
-from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction, ConcatMlp, EmbeddingLayer, Concatenate, ConcatBiInteraction
+from src.model_subclass import GraphEmbedding, ProtSeqEmbedding, BiInteraction, ConcatBiInteraction, ConcatMlp, EmbeddingLayer, Concatenate, ConcatBiInteraction
 from src.graphLayer import WeaveGather
 from src.data_utils import DataSet, PROTCHARSIZE
 from src.utils import make_config_str, PROJPATH
@@ -23,17 +23,18 @@ parser.add_argument("--dataset", type= str, default= "davis", help = "dataset to
 parser.add_argument("--pretrain", action= 'store_true', dest= 'pretrain', default= False, help= "whether to use pretrain graph convolution layer")
 parser.add_argument("--lr", type= float, default= 0.001, help= "learning rate in optimizer")
 parser.add_argument("--batchsize", type= int, default= 64, help = "batchsize during training.")
-parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [128, 256, 512], help= "atom hidden dimension list in graph embedding model.")
-parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [128, 256, 512], help = "pair hidden dimension list in graph embedding model.")
-parser.add_argument("--graph_features", type= int, default= 512, help= "graph features dimension")
-parser.add_argument("--num_filters", type= int, nargs= "+", default= [32, 64, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
+parser.add_argument("--atom_hidden", type= int, nargs= "+", default= [128, 256, 256], help= "atom hidden dimension list in graph embedding model.")
+parser.add_argument("--pair_hidden", type= int, nargs= "+", default= [128, 256, 256], help = "pair hidden dimension list in graph embedding model.")
+parser.add_argument("--graph_features", type= int, default= 256, help= "graph features dimension")
+parser.add_argument("--num_filters", type= int, nargs= "+", default= [64, 96, 128], help = "numbers of 1D convolution filters protein seq embedding model.")
 parser.add_argument("--filters_length", type= int, nargs= "+", default= [4, 8, 12], help = "filter length list of 1D conv filters in protSeq embedding.")
 parser.add_argument("--mol_embed_size", type= int, default= -1, help = 'molecular atom and bond feature embed size')
 parser.add_argument("--biInteraction_hidden", type= int, nargs= "+", default= [1024, 512], help = "hidden dimension list in BiInteraction model.")
 parser.add_argument("--dropout", type= float, default= 0.2, help= "dropout rate in biInteraction model.")
 parser.add_argument("--use_resConnection", action= 'store_true', dest= 'residual_connection', default= False, help= "whther use residual connection" )
 parser.add_argument("--weight_decay", type= float, default= 1E-5, help = "l2 loss weight decay")
-parser.add_argument("--epoches", type= int, default= 20, help= "epoches during training..")
+parser.add_argument("--only_test", action= 'store_true', dest= 'only_test', default= False, help= "whether only to test.")
+parser.add_argument("--epoches", type= int, default= 100, help= "epoches during training..")
 parser.add_argument("--pretrain_epoches", type= int, default= 1, help= "Epoches in pretraining.")
 parser.add_argument("--patience", type= int, default= 1, help= "patience epoch to wait during early stopping.")
 parser.add_argument("--print_every", type= int, default= 1, help= "print intervals during loop dataset.")
@@ -42,7 +43,7 @@ args = parser.parse_args()
 tf.enable_eager_execution()
 
 pprint(vars(args))
-prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-weight_decay~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-concatMlp/" \
+prefix = "dataset~%s/pretrain~%s-lr~%s-mol_embed~%d-weight_decay~%s-atom_hidden~%s-pair_hidden~%s-graph_dim~%s-num_filters~%s-biInt_hidden~%s-dropout~%s-epoches~%s-weave-rCNN/" \
          % (args.dataset, args.pretrain, args.lr, args.mol_embed_size, args.weight_decay, '_'.join([str(d) for d in args.atom_hidden]), '_'.join([str(d) for d in args.pair_hidden]),
             args.graph_features, '_'.join([str(d) for d in args.num_filters]),
             '_'.join([str(d) for d in args.biInteraction_hidden]) , args.dropout, args.epoches)
@@ -81,7 +82,9 @@ num_atoms = Input(shape=(), dtype= tf.int32, batch_size= 1)
 mol_input = [atom_features, pair_features, pair_split, atom_split, atom_to_pair, num_atoms]
 
 protSeq = Input(shape=(PROTSEQLENGTH,))
+protSeq_len = Input(shape= ())
 
+protSeq_input = [protSeq, protSeq_len]
 atom_embed_ls =  [128] + [64, ] * 6
 atom_dim = sum(atom_embed_ls)
 atom_feat = EmbeddingLayer(mol_featurizer.atom_cat_dim, atom_embed_ls)(atom_features)
@@ -111,13 +114,19 @@ protSeq_embedding = ProtSeqEmbedding(num_filters_list= args.num_filters,
                                            max_seq_length= PROTSEQLENGTH,
                                            name = 'protein_embedding'
                                            )(protSeq)
+# affinity = ConcatBiInteraction(hidden_list= args.biInteraction_hidden,
+#                                     dropout= args.dropout,
+#                                     activation= 'tanh',
+#                                     weight_decay = args.weight_decay,
+#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split, protSeq_len])
 # affinity = BiInteraction(hidden_list= args.biInteraction_hidden,
 #                                     dropout= args.dropout,
 #                                     activation= 'tanh',
-#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split])
+#                                     weight_decay = args.weight_decay,
+#                                     name= 'biInteraction')([atom_embedding, protSeq_embedding, atom_split, protSeq_len])
 affinity = ConcatMlp(hidden_list= args.biInteraction_hidden, dropout= args.dropout, activation= 'tanh', weight_decay= args.weight_decay)([atom_embedding, protSeq_embedding, atom_split])
 # DrugPropertyModel = Model(inputs= mol_input, outputs= mol_property, name= 'drugPropertyModel')
-DTAModel= Model(inputs = [mol_input, protSeq],
+DTAModel= Model(inputs = [mol_input, protSeq_input],
                 outputs= affinity,
                 name= "DTAmodel")
 init_weight_subdir = chkpt_dir + '/initial/'
@@ -158,7 +167,8 @@ def loop_dataset(indices, optimizer = None):
             # print(main_loss.numpy(), reg_loss.numpy())
 
         loss_value = loss_tensor.numpy().mean()
-        ci_value = ci_tensor.numpy()
+        # loss_value = np.NaN
+        ci_value = ci_tensor.numpy() # nan != nan
 
         mean_loss = (it * mean_loss + loss_value) / (it + 1)
         mean_ci = (it * mean_ci + ci_value) / (it + 1)
@@ -180,11 +190,13 @@ def loop_dataset(indices, optimizer = None):
 global_step = tf.train.create_global_step()
 
 DTAModel.summary()
+
+use_train = False
 best_ci = float('-inf')
 best_loss = float('inf')
 best_it = -1
 for it in range(5):
-    # if it != 1:
+    # if it > 0:
     #     continue
     val_inds = fold5_train[it]
     train_inds = []
@@ -193,33 +205,35 @@ for it in range(5):
             train_inds.extend(fold5_train[ind])
     print(max(train_inds), min(train_inds))
     printf("Start cross validation %d..." %(it, ))
+
     chkpt_subdir = chkpt_dir + '/cv~%d/' %(it, )
     if not os.path.exists(chkpt_subdir):
         os.makedirs(chkpt_subdir)
     DTAModel.set_weights(init_weight)
 
-    global_step.assign(0)
-    optimizer = tf.train.AdamOptimizer(learning_rate=args.lr) # careful here for optimizer record moving mean velocity and mass
+    if not args.only_test:
+        global_step.assign(0)
+        optimizer = tf.train.AdamOptimizer(learning_rate=args.lr) # careful here for optimizer record moving mean velocity and mass
 
-    best_metric = float("inf")
-    wait = 0
-    for epoch in range(args.epoches):
-        printf("training epoch %s..." %(epoch, ))
-        train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
-        printf("train epoch %d loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
+        best_metric = float("inf")
+        wait = 0
+        for epoch in range(args.epoches):
+            printf("training epoch %s..." %(epoch, ))
+            train_loss, train_ci = loop_dataset(train_inds, optimizer = optimizer)
+            printf("train epoch %d loss %.4f ci %.4f \n" %(epoch, train_loss, train_ci))
 
-        printf("validating epoch %s..." %(epoch, ))
-        val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
-        printf("validating epoch %d loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
-        if val_loss <= best_metric:
-            best_metric = val_loss
-            DTAModel.save_weights(os.path.join(chkpt_subdir, "DTA"), )
-            wait = 0
-        else:
-            wait += 1
+            printf("validating epoch %s..." %(epoch, ))
+            val_loss, val_ci = loop_dataset(val_inds, optimizer= None)
+            printf("validating epoch %d loss %.4f ci %.4f \n" %(epoch, val_loss, val_ci))
+            if val_loss <= best_metric:
+                best_metric = val_loss
+                DTAModel.save_weights(os.path.join(chkpt_subdir, "DTA"), )
+                wait = 0
+            else:
+                wait += 1
 
-        if wait > args.patience:
-            break
+            if wait > args.patience:
+                break
 
     DTAModel.load_weights(os.path.join(chkpt_subdir, "DTA"))
 
