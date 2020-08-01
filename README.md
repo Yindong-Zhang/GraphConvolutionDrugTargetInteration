@@ -10,7 +10,7 @@ I use dataset from [deepDTA](http://arxiv.org/abs/1801.10193), which use convolu
 
 * Different depth and size of graph convolution layer are searched
 * atom and bond categorical features are encoded by embedding layer and concated as initial input to GCN layers.
-* A pretraining experiment on graph convolution side using calculated molecular property, see a little improvement about 0.003, idea from [http://arxiv.org/abs/1712.02734] .pretraing on [KIBA origin dataset](http://arxiv.org/abs/1801.10193).
+* A pretraining experiment on graph convolution side using calculated molecular property, see a little improvement about 0.002, idea from [http://arxiv.org/abs/1712.02734] .pretraing on [KIBA origin dataset](http://arxiv.org/abs/1801.10193).
 * a biInteraction layer between compound atom vectors following GCN and protein sequence vector following CNN, similar to [http://arxiv.org/abs/1806.07537], but it's hard to train and see barely any improvement.
 ## Requirements
 
